@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/Button";
-import { Coins, Share2, PlayCircle, ClockRewind, Copy } from "lucide-react";
+import { Coins, Share2, PlayCircle, History, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 interface Activity {
@@ -151,7 +151,7 @@ const Dashboard = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <ClockRewind className="mr-2 h-5 w-5 text-primary" />
+                  <History className="mr-2 h-5 w-5 text-primary" />
                   Recent Activity
                 </CardTitle>
                 <CardDescription>Content generated in the last two months</CardDescription>
