@@ -25,6 +25,8 @@ import ContentEditor from "./pages/tools/ContentEditor";
 import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
 import Cookies from "./pages/legal/Cookies";
+import FileManager from "./pages/FileManager";
+import SharedFile from "./pages/SharedFile";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +62,7 @@ const App = () => (
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/cookies" element={<Cookies />} />
+            <Route path="/shared/:shareToken" element={<SharedFile />} />
             
             {/* Protected Routes */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -68,6 +71,7 @@ const App = () => (
             <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
             <Route path="/tools/:toolType" element={<ProtectedRoute><ToolInterface /></ProtectedRoute>} />
             <Route path="/editor/:contentId" element={<ProtectedRoute><ContentEditor /></ProtectedRoute>} />
+            <Route path="/files" element={<ProtectedRoute><FileManager /></ProtectedRoute>} />
             
             {/* 404 Route */}
             <Route path="*" element={<NotFound />} />

@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/Button";
-import { Coins, Share2, PlayCircle, History, Copy } from "lucide-react";
+import { Coins, Share2, PlayCircle, History, Copy, Folder } from "lucide-react";
 import { toast } from "sonner";
 
 interface Activity {
@@ -18,12 +18,20 @@ interface Activity {
   created_at: string;
 }
 
+interface Credits {
+  total_credits: number;
+  referral_credits: number;
+  ad_credits: number;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [totalCredits, setTotalCredits] = useState(0);
-  const [referralCredits, setReferralCredits] = useState(0);
-  const [adCredits, setAdCredits] = useState(0);
+  const [credits, setCredits] = useState<Credits>({
+    total_credits: 0,
+    referral_credits: 0,
+    ad_credits: 0
+  });
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [referralLink, setReferralLink] = useState("");
@@ -37,20 +45,59 @@ const Dashboard = () => {
     const loadDashboardData = async () => {
       setIsLoading(true);
       try {
-        // This would normally fetch actual data from Supabase
-        // For now, we'll use placeholders
-        setTotalCredits(25);
-        setReferralCredits(15);
-        setAdCredits(10);
+        // Fetch credits
+        const { data: creditsData, error: creditsError } = await supabase
+          .from("credits")
+          .select("total_credits, referral_credits, ad_credits")
+          .eq("user_id", user.id)
+          .single();
+
+        if (creditsError) {
+          // If no credits record exists, create one
+          if (creditsError.code === "PGRST116") {
+            const { data: newCredits, error: newCreditsError } = await supabase
+              .from("credits")
+              .insert({
+                user_id: user.id,
+                total_credits: 5, // Start with 5 credits
+                referral_credits: 0,
+                ad_credits: 0
+              })
+              .select()
+              .single();
+
+            if (newCreditsError) {
+              console.error("Error creating credits:", newCreditsError);
+            } else {
+              setCredits({
+                total_credits: newCredits.total_credits,
+                referral_credits: newCredits.referral_credits,
+                ad_credits: newCredits.ad_credits
+              });
+            }
+          } else {
+            console.error("Error fetching credits:", creditsError);
+          }
+        } else {
+          setCredits(creditsData);
+        }
+
+        // Fetch recent activity
+        const { data: activityData, error: activityError } = await supabase
+          .from("content")
+          .select("id, title, type, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (activityError) {
+          console.error("Error fetching activity:", activityError);
+        } else {
+          setRecentActivity(activityData || []);
+        }
+
+        // Set referral link
         setReferralLink(`${window.location.origin}/signup?ref=${user.id}`);
-        
-        // Mock recent activity data
-        setRecentActivity([
-          { id: "1", title: "Blog Post: Benefits of Halal Food", type: "blog", created_at: new Date(Date.now() - 86400000 * 2).toISOString() },
-          { id: "2", title: "YouTube Script: Islamic Finance Basics", type: "youtube", created_at: new Date(Date.now() - 86400000 * 5).toISOString() },
-          { id: "3", title: "Research: Prayer Times Calculation", type: "research", created_at: new Date(Date.now() - 86400000 * 7).toISOString() },
-          { id: "4", title: "Code: Prayer Time Calculator", type: "developer", created_at: new Date(Date.now() - 86400000 * 10).toISOString() },
-        ]);
       } catch (error) {
         console.error("Error loading dashboard data:", error);
       } finally {
@@ -113,7 +160,7 @@ const Dashboard = () => {
               <CardDescription>Available for content generation</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{totalCredits}</p>
+              <p className="text-3xl font-bold">{credits.total_credits}</p>
             </CardContent>
           </Card>
 
@@ -127,7 +174,7 @@ const Dashboard = () => {
               <CardDescription>Earned from referrals</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{referralCredits}</p>
+              <p className="text-3xl font-bold">{credits.referral_credits}</p>
             </CardContent>
           </Card>
 
@@ -141,7 +188,7 @@ const Dashboard = () => {
               <CardDescription>Earned from watching ads</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{adCredits}</p>
+              <p className="text-3xl font-bold">{credits.ad_credits}</p>
             </CardContent>
           </Card>
         </div>
@@ -190,7 +237,7 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          <div>
+          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Share & Earn</CardTitle>
@@ -223,6 +270,25 @@ const Dashboard = () => {
                     Share Link
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <Folder className="mr-2 h-5 w-5 text-primary" />
+                  File Management
+                </CardTitle>
+                <CardDescription>Organize your content</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => navigate("/files")}
+                >
+                  Manage Files & Folders
+                </Button>
               </CardContent>
             </Card>
           </div>

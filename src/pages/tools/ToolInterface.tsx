@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, Copy, Download, Edit, RefreshCw, ChevronDown } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Send, Copy, Download, Edit, RefreshCw, ChevronDown, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ToolMapping {
   [key: string]: {
@@ -32,7 +34,9 @@ const ToolInterface = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
   const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState(false);
-  
+  const [credits, setCredits] = useState(0);
+  const [haramError, setHaramError] = useState<{error: string, details: string, phrases: string[]} | null>(null);
+
   const toolMapping: ToolMapping = {
     blogging: {
       name: "Blogging Tool",
@@ -105,54 +109,110 @@ const ToolInterface = () => {
     setWordCount([1500]);
     setTone("professional");
     setGeneratedContent("");
+    setHaramError(null);
+    
+    // Fetch user's credits
+    const fetchCredits = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("credits")
+          .select("total_credits")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (error) {
+          if (error.code === "PGRST116") {
+            // No credits record exists, create one
+            const { data: newCredits, error: newCreditsError } = await supabase
+              .from("credits")
+              .insert({
+                user_id: user.id,
+                total_credits: 5, // Start with 5 credits
+                referral_credits: 0,
+                ad_credits: 0
+              })
+              .select()
+              .single();
+
+            if (newCreditsError) {
+              console.error("Error creating credits:", newCreditsError);
+            } else {
+              setCredits(newCredits.total_credits);
+            }
+          } else {
+            console.error("Error fetching credits:", error);
+          }
+        } else {
+          setCredits(data.total_credits);
+        }
+      } catch (error) {
+        console.error("Error fetching credits:", error);
+      }
+    };
+
+    fetchCredits();
   }, [toolType, user, navigate]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!prompt.trim()) {
       toast.error("Please enter a prompt before generating content");
       return;
     }
 
+    if (credits <= 0) {
+      toast.error("You don't have enough credits to generate content");
+      return;
+    }
+
     setIsGenerating(true);
+    setHaramError(null);
     
-    // Simulate content generation (this would normally call an AI API)
-    setTimeout(() => {
-      // Mock generated content
-      const mockContent = `# ${prompt.split(" ").slice(0, 5).join(" ")}...
-
-## Introduction
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris auctor, nisl eget aliquam lacinia, nunc nisl tincidunt nunc, eget lacinia nisl nisl eget nisl. Mauris auctor, nisl eget aliquam lacinia, nunc nisl tincidunt nunc, eget lacinia nisl nisl eget nisl.
-
-## Main Points
-
-1. **First Point**: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris auctor, nisl eget aliquam lacinia, nunc nisl tincidunt nunc, eget lacinia nisl nisl eget nisl.
-
-2. **Second Point**: Mauris auctor, nisl eget aliquam lacinia, nunc nisl tincidunt nunc, eget lacinia nisl nisl eget nisl.
-
-3. **Third Point**: Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-
-## Islamic Perspective
-
-From an Islamic perspective, this topic relates to several key principles:
-
-- **Principle 1**: Lorem ipsum dolor sit amet
-- **Principle 2**: Consectetur adipiscing elit
-- **Principle 3**: Mauris auctor, nisl eget aliquam lacinia
-
-## Conclusion
-
-In conclusion, we can see that this topic has significant implications for Muslims in their daily lives. By following the guidance from Islamic teachings, we can approach this matter with wisdom and balance.
-
-*May Allah guide us all to what is best and most pleasing to Him.*`;
-
-      setGeneratedContent(mockContent);
-      setIsGenerating(false);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          prompt,
+          negativePrompt,
+          wordCount: wordCount[0],
+          tone,
+          toolType: toolType || "general",
+          userId: user?.id
+        })
+      });
       
-      // Create a mock content ID and redirect to the editor
-      const contentId = Math.random().toString(36).substring(2, 15);
-      navigate(`/editor/${contentId}`);
-    }, 3000);
+      const result = await response.json();
+      
+      if (response.ok) {
+        // Update local credits state
+        setCredits(credits - 1);
+        
+        if (result.contentId) {
+          // Redirect to editor
+          navigate(`/editor/${result.contentId}`);
+        } else {
+          setGeneratedContent(result.content);
+        }
+      } else {
+        if (result.error === "Haram content detected") {
+          setHaramError({
+            error: result.error,
+            details: result.details,
+            phrases: result.haramPhrases || []
+          });
+        } else {
+          toast.error(result.error || "Failed to generate content");
+        }
+      }
+    } catch (error) {
+      console.error("Error generating content:", error);
+      toast.error("An error occurred while generating content");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const copyToClipboard = () => {
@@ -197,6 +257,34 @@ In conclusion, we can see that this topic has significant implications for Musli
               </p>
             </div>
           </div>
+          
+          <div className="mb-4 flex justify-end">
+            <div className="flex items-center text-sm">
+              <Coins className="h-4 w-4 mr-1 text-primary" />
+              <span>Available Credits: <strong>{credits}</strong></span>
+            </div>
+          </div>
+          
+          {haramError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Haram Content Detected</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{haramError.details}</p>
+                {haramError.phrases && haramError.phrases.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Problematic phrases:</p>
+                    <ul className="list-disc pl-5 mt-1">
+                      {haramError.phrases.map((phrase, index) => (
+                        <li key={index} className="mt-1">"{phrase}"</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="mt-3">Please revise your prompt to align with Islamic principles.</p>
+              </AlertDescription>
+            </Alert>
+          )}
           
           <Card className="mb-8">
             <CardContent className="pt-6">
@@ -282,14 +370,17 @@ In conclusion, we can see that this topic has significant implications for Musli
                 <Button
                   onClick={handleGenerate}
                   className="w-full"
+                  disabled={isGenerating || credits <= 0}
                   isLoading={isGenerating}
                 >
                   {isGenerating ? (
                     "Generating..."
+                  ) : credits <= 0 ? (
+                    "Not Enough Credits"
                   ) : (
                     <>
                       <Send className="mr-2 h-4 w-4" />
-                      Generate Content
+                      Generate Content ({credits} credits available)
                     </>
                   )}
                 </Button>
@@ -318,3 +409,25 @@ In conclusion, we can see that this topic has significant implications for Musli
 };
 
 export default ToolInterface;
+
+const Coins = (props: any) => {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="8" cy="8" r="6" />
+      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+      <path d="M7 6h1v4" />
+      <path d="m16.71 13.88.7.71-2.82 2.82" />
+    </svg>
+  );
+};
