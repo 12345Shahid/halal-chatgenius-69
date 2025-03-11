@@ -1,159 +1,139 @@
 
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-import Button from '@/components/ui/Button';
-import { MessageSquare, Shield, Sparkles, Share2, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import MainNav from "@/components/layout/MainNav";
+import Footer from "@/components/layout/Footer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const About = () => {
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("mission");
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
-      
-      <main className="flex-1 pt-24">
-        {/* Hero Section */}
-        <section className="py-16 md:py-24">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl font-semibold mb-6">About HalalChat AI</h1>
-              <p className="text-lg text-muted-foreground mb-8">
-                The First Free, Unlimited Halal AI Chat Assistant that aligns with Islamic principles.
-              </p>
-              <div className="flex flex-wrap justify-center gap-4">
-                <Button 
-                  onClick={() => navigate('/signup')}
-                  className="gap-2"
-                >
-                  <MessageSquare size={18} />
-                  Start Chatting
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate('/contact')}
-                >
-                  Contact Us
-                </Button>
+      <MainNav />
+
+      <main className="flex-grow container mx-auto px-4 py-12">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-semibold mb-4">About HalalChat AI</h1>
+            <p className="text-lg text-muted-foreground">
+              Creating Halal content with peace of mind
+            </p>
+          </div>
+
+          <Tabs
+            defaultValue="mission"
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-3 mb-8">
+              <TabsTrigger value="mission">Our Mission</TabsTrigger>
+              <TabsTrigger value="values">Our Values</TabsTrigger>
+              <TabsTrigger value="team">Our Team</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="mission" className="space-y-6">
+              <div className="prose max-w-none">
+                <h2 className="text-2xl font-medium mb-4">Our Mission</h2>
+                <p className="mb-4">
+                  HalalChat AI was founded with a clear mission: to provide Muslims and those seeking ethical content with an AI assistant that aligns with Islamic principles and values.
+                </p>
+                <p className="mb-4">
+                  In today's digital world, many AI tools are trained on data that may include content contradicting Islamic values. We recognized this gap and created HalalChat AI to offer a solution that ensures all generated content respects Islamic guidelines and principles.
+                </p>
+                <p className="mb-4">
+                  We believe that technology should serve humanity while respecting moral and ethical boundaries. Our mission is to make AI accessible for Muslims worldwide while maintaining the highest standards of ethical content creation.
+                </p>
+                <p>
+                  HalalChat AI is committed to continuous improvement, learning, and adaptation to ensure that our service always meets the needs of our community while staying true to Islamic principles.
+                </p>
               </div>
-            </div>
-          </div>
-        </section>
+            </TabsContent>
 
-        {/* Mission Section */}
-        <section className="py-16 bg-secondary/50">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto">
-              <h2 className="text-3xl font-semibold mb-6 text-center">Our Mission</h2>
-              <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
-                HalalChat AI was created with a singular purpose: to provide a powerful AI assistant that respects Islamic principles and values. In today's digital world, AI technology is advancing rapidly, but often without consideration for religious and ethical boundaries.
-              </p>
-              <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
-                We believe that Muslims shouldn't have to compromise their values to benefit from cutting-edge AI. That's why we've built an AI assistant that is specifically designed to filter content according to Islamic principles, ensuring that all interactions and generated content align with halal standards.
-              </p>
-              <p className="text-muted-foreground text-lg leading-relaxed">
-                Our mission extends beyond just providing a tool – we aim to build a community of Muslims who can share, learn, and grow together using ethical AI that respects their faith and values.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section className="py-16">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto">
-              <h2 className="text-3xl font-semibold mb-12 text-center">What Sets Us Apart</h2>
-              
-              <div className="space-y-12">
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="md:w-16 flex items-start justify-center">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Shield size={24} className="text-primary" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-medium mb-3">Ethical & Halal AI</h3>
-                    <p className="text-muted-foreground">
-                      Our AI is specifically designed to filter content according to Islamic principles. We've trained our model to recognize and avoid generating content that contradicts Islamic teachings, ensuring that all interactions and outputs align with halal standards. Whether you're creating blog content, researching information, or just having a conversation, you can trust that HalalChat AI will respect your values.
+            <TabsContent value="values" className="space-y-6">
+              <div className="prose max-w-none">
+                <h2 className="text-2xl font-medium mb-4">Our Core Values</h2>
+                
+                <div className="grid md:grid-cols-2 gap-6 mt-8">
+                  <div className="bg-card p-6 rounded-lg border border-border">
+                    <h3 className="text-xl font-medium mb-2 text-primary">Islamic Compliance</h3>
+                    <p>
+                      We ensure all content generated by our AI adheres to Islamic principles, avoiding anything that contradicts Islamic teachings.
                     </p>
                   </div>
-                </div>
-                
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="md:w-16 flex items-start justify-center">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Sparkles size={24} className="text-primary" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-medium mb-3">Unlimited Free Access</h3>
-                    <p className="text-muted-foreground">
-                      We believe that access to ethical AI shouldn't be limited by financial constraints. That's why we offer unlimited free access to our basic features. No credit card or payment is required to start using HalalChat AI. We've implemented an innovative credit system where users can earn credits by sharing our platform with others, creating a community-driven approach to sustainability.
+                  
+                  <div className="bg-card p-6 rounded-lg border border-border">
+                    <h3 className="text-xl font-medium mb-2 text-primary">Ethical Technology</h3>
+                    <p>
+                      We believe in using technology to promote good and prevent harm, in line with Islamic teachings about responsible stewardship.
                     </p>
                   </div>
-                </div>
-                
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="md:w-16 flex items-start justify-center">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Share2 size={24} className="text-primary" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-medium mb-3">Share & Learn</h3>
-                    <p className="text-muted-foreground">
-                      HalalChat AI is more than just a tool – it's a platform for knowledge sharing. Save, organize, and share AI-generated Islamic content with your community. Our file management system allows you to create folders, categorize your content, and easily find what you need later. You can also mark conversations as favorites and export them in various formats.
+                  
+                  <div className="bg-card p-6 rounded-lg border border-border">
+                    <h3 className="text-xl font-medium mb-2 text-primary">Community-Focused</h3>
+                    <p>
+                      We prioritize building tools that serve the Muslim community's specific needs, creating a safe space for ethical content creation.
                     </p>
                   </div>
-                </div>
-                
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="md:w-16 flex items-start justify-center">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Users size={24} className="text-primary" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-medium mb-3">Community-Driven</h3>
-                    <p className="text-muted-foreground">
-                      Our unique credit system encourages community growth. When you share our platform and others join through your link, you both benefit. This creates a network effect where the more people use and share HalalChat AI, the more resources everyone has to create valuable content. We're building a global community of Muslims who can benefit from ethical AI together.
+                  
+                  <div className="bg-card p-6 rounded-lg border border-border">
+                    <h3 className="text-xl font-medium mb-2 text-primary">Transparency</h3>
+                    <p>
+                      We are open about how our AI works, what data it uses, and how we ensure content remains halal and ethically sourced.
                     </p>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
+            </TabsContent>
 
-        {/* CTA Section */}
-        <section className="py-16 md:py-24">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto bg-background rounded-xl overflow-hidden shadow-elevated">
-              <div className="p-8 md:p-12">
-                <div className="text-center mb-8">
-                  <h2 className="text-3xl font-semibold mb-4">
-                    Join Our Growing Community
-                  </h2>
-                  <p className="text-muted-foreground max-w-2xl mx-auto">
-                    Be part of a movement to make AI technology accessible and aligned with Islamic principles.
-                  </p>
+            <TabsContent value="team" className="space-y-6">
+              <div className="prose max-w-none">
+                <h2 className="text-2xl font-medium mb-4">Our Team</h2>
+                <p className="mb-6">
+                  HalalChat AI is built by a diverse team of Muslims passionate about technology, ethics, and Islamic values. Our team includes:
+                </p>
+                
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="text-center">
+                    <div className="w-32 h-32 bg-accent rounded-full mx-auto mb-4 flex items-center justify-center">
+                      <span className="text-4xl">👨‍💻</span>
+                    </div>
+                    <h3 className="text-lg font-medium">AI Engineers</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Who ensure our models meet Islamic guidelines
+                    </p>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="w-32 h-32 bg-accent rounded-full mx-auto mb-4 flex items-center justify-center">
+                      <span className="text-4xl">📚</span>
+                    </div>
+                    <h3 className="text-lg font-medium">Islamic Scholars</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Who review content policies and provide guidance
+                    </p>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="w-32 h-32 bg-accent rounded-full mx-auto mb-4 flex items-center justify-center">
+                      <span className="text-4xl">🌐</span>
+                    </div>
+                    <h3 className="text-lg font-medium">Community Managers</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Who ensure we meet the needs of Muslims worldwide
+                    </p>
+                  </div>
                 </div>
                 
-                <div className="flex justify-center">
-                  <Button 
-                    onClick={() => navigate('/signup')}
-                    size="lg"
-                    className="px-8"
-                  >
-                    Get Started Free
-                  </Button>
-                </div>
+                <p className="mt-8">
+                  Together, we work to create a platform that Muslims can trust for generating content that aligns with their values and beliefs.
+                </p>
               </div>
-            </div>
-          </div>
-        </section>
+            </TabsContent>
+          </Tabs>
+        </div>
       </main>
-      
+
       <Footer />
     </div>
   );
