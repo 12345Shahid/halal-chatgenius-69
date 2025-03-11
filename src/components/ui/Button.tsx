@@ -1,4 +1,3 @@
-
 import { cn } from "@/lib/utils";
 import { forwardRef } from "react";
 import { Slot } from "@radix-ui/react-slot";
@@ -74,6 +73,5 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
 Button.displayName = "Button";
 
-// Export both named and default exports
 export { Button, buttonVariants };
 export default Button;
