@@ -17,10 +17,11 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Download, Bookmark, Sparkles } from "lucide-react";
+import { AlertCircle, Download, Bookmark, Sparkles, Edit2, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/use-credits';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ToolInterface = () => {
   const { toolType } = useParams<{ toolType: string }>();
@@ -39,7 +40,10 @@ const ToolInterface = () => {
   const [haramDetails, setHaramDetails] = useState<{
     explanation?: string;
     haramPhrases?: string[];
+    categories?: string[];
   } | null>(null);
+  const [halalSuggestion, setHalalSuggestion] = useState<string | null>(null);
+  const [showSuggestionDialog, setShowSuggestionDialog] = useState(false);
 
   const toolTypeLabel = () => {
     switch (toolType) {
@@ -71,8 +75,8 @@ const ToolInterface = () => {
     }
   };
 
-  const generateContent = async () => {
-    if (!prompt.trim()) {
+  const generateContent = async (useHalalSuggestion = false) => {
+    if (!prompt.trim() && !useHalalSuggestion) {
       toast.error("Please enter a prompt");
       return;
     }
@@ -91,8 +95,11 @@ const ToolInterface = () => {
     setGenerating(true);
     setError(null);
     setHaramDetails(null);
+    setHalalSuggestion(null);
 
     try {
+      const currentPrompt = useHalalSuggestion && halalSuggestion ? halalSuggestion : prompt;
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`, {
         method: "POST",
         headers: {
@@ -100,7 +107,7 @@ const ToolInterface = () => {
           Authorization: `Bearer ${supabase.auth.getSession()}`
         },
         body: JSON.stringify({
-          prompt,
+          prompt: currentPrompt,
           negativePrompt: negativePrompt || undefined,
           wordCount: wordCount || undefined,
           tone: tone || undefined,
@@ -115,9 +122,12 @@ const ToolInterface = () => {
         if (data.error === "Haram content detected") {
           setHaramDetails({
             explanation: data.details,
-            haramPhrases: data.haramPhrases
+            haramPhrases: data.haramPhrases,
+            categories: data.categories
           });
+          setHalalSuggestion(data.halalSuggestion);
           setError("The content you requested contains elements that are not permissible according to Islamic principles.");
+          setShowSuggestionDialog(true);
         } else if (data.error === "Not enough credits") {
           setError("You don't have enough credits. Please get more credits to continue.");
         } else {
@@ -135,6 +145,18 @@ const ToolInterface = () => {
     } finally {
       setGenerating(false);
     }
+  };
+
+  const useHalalSuggestion = () => {
+    setShowSuggestionDialog(false);
+    if (halalSuggestion) {
+      setPrompt(halalSuggestion);
+      generateContent(true);
+    }
+  };
+
+  const declineSuggestion = () => {
+    setShowSuggestionDialog(false);
   };
 
   const saveContent = () => {
@@ -283,17 +305,51 @@ const ToolInterface = () => {
                   {error && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Error</AlertTitle>
+                      <AlertTitle>Content Issues Detected</AlertTitle>
                       <AlertDescription>{error}</AlertDescription>
+                      
+                      {haramDetails && haramDetails.explanation && (
+                        <div className="mt-2 text-sm">
+                          <p className="font-semibold">Explanation:</p>
+                          <p className="mt-1">{haramDetails.explanation}</p>
+                        </div>
+                      )}
                       
                       {haramDetails && haramDetails.haramPhrases && haramDetails.haramPhrases.length > 0 && (
                         <div className="mt-2">
-                          <p className="font-semibold">Detected phrases:</p>
+                          <p className="font-semibold">Problematic phrases:</p>
                           <ul className="list-disc pl-5 mt-1">
                             {haramDetails.haramPhrases.map((phrase, idx) => (
                               <li key={idx} className="text-sm">{phrase}</li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+
+                      {haramDetails && haramDetails.categories && haramDetails.categories.length > 0 && (
+                        <div className="mt-2">
+                          <p className="font-semibold">Categories:</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {haramDetails.categories.map((category, idx) => (
+                              <span key={idx} className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
+                                {category}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {halalSuggestion && (
+                        <div className="mt-3">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setShowSuggestionDialog(true)}
+                            className="w-full"
+                          >
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            View Halal Alternative
+                          </Button>
                         </div>
                       )}
                     </Alert>
@@ -302,7 +358,7 @@ const ToolInterface = () => {
                   <div className="pt-2">
                     <Button
                       className="w-full"
-                      onClick={generateContent}
+                      onClick={() => generateContent()}
                       disabled={generating || !prompt.trim()}
                     >
                       <Sparkles className="mr-2 h-4 w-4" />
@@ -363,6 +419,45 @@ const ToolInterface = () => {
             </Card>
           </div>
         </div>
+
+        {/* Halal Suggestion Dialog */}
+        <Dialog open={showSuggestionDialog} onOpenChange={setShowSuggestionDialog}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Suggested Halal Alternative</DialogTitle>
+              <DialogDescription>
+                We've created a halal-compliant version of your prompt that maintains your original intent while removing problematic content.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <h4 className="font-medium">Original Prompt:</h4>
+                <div className="p-3 bg-muted rounded-md text-sm">
+                  {prompt}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Suggested Halal Alternative:</h4>
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm">
+                  {halalSuggestion}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="sm:justify-between">
+              <Button variant="outline" onClick={declineSuggestion}>
+                <X className="mr-2 h-4 w-4" />
+                Decline Suggestion
+              </Button>
+              <Button onClick={useHalalSuggestion}>
+                <Check className="mr-2 h-4 w-4" />
+                Use Suggestion
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
