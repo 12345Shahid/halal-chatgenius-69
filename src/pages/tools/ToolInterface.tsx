@@ -7,6 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/Button';
+import { Label } from '@/components/ui/label';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue 
+} from '@/components/ui/select';
+import { Alert, AlertCircle, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Sparkles, Download, Bookmark } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/use-credits';
 

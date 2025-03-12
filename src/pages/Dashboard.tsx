@@ -1,11 +1,12 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainNav from "@/components/layout/MainNav";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { Coins, Share2, PlayCircle, History, Copy, Folder } from "lucide-react";
 import { toast } from "sonner";
 import { useCredits } from "@/hooks/use-credits";
@@ -48,9 +49,6 @@ const Dashboard = () => {
         } else {
           setRecentActivity(activityData || []);
         }
-
-        // Set referral link
-        setReferralLink(`${window.location.origin}/signup?ref=${user.id}`);
       } catch (error) {
         console.error("Error loading dashboard data:", error);
       } finally {
@@ -62,8 +60,10 @@ const Dashboard = () => {
   }, [user, navigate]);
 
   const copyReferralLink = () => {
-    navigator.clipboard.writeText(referralLink);
-    toast.success("Referral link copied to clipboard!");
+    if (referralLink) {
+      navigator.clipboard.writeText(referralLink);
+      toast.success("Referral link copied to clipboard!");
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -204,7 +204,7 @@ const Dashboard = () => {
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
-                    value={referralLink}
+                    value={referralLink || ''}
                     readOnly
                     className="flex-1 px-3 py-2 border rounded-md text-sm"
                   />

@@ -19,37 +19,33 @@ export const useCredits = () => {
 
     setLoading(true);
     try {
-      // Try to fetch existing credits using direct query since we're having issues with RPC
+      // First try to fetch the user record which contains credits
       const { data, error } = await supabase
-        .from('credits')
+        .from('users')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .maybeSingle();
           
       if (error) {
-        if (error.code === 'PGRST116') {
-          // If no credits exist, create a new record
-          const { data: newCredits, error: createError } = await supabase
-            .from('credits')
-            .insert({
-              user_id: user.id,
-              total_credits: 5, // Start with 5 credits
-              referral_credits: 0,
-              ad_credits: 0
-            })
-            .select()
-            .single();
-            
-          if (createError) {
-            throw createError;
-          }
-          
-          setCredits(newCredits as Credit);
-        } else {
-          throw error;
-        }
+        throw error;
+      } 
+      
+      if (data) {
+        // Convert the users table data to match our Credit type 
+        const creditData: Credit = {
+          id: data.id,
+          user_id: data.id,
+          total_credits: data.credits || 0,
+          referral_credits: 0, // Not stored directly in users table
+          ad_credits: 0, // Not stored directly in users table
+          created_at: data.created_at,
+          updated_at: data.updated_at
+        };
+        
+        setCredits(creditData);
       } else {
-        setCredits(data as Credit);
+        // If no user record exists with credits, this is an error state
+        throw new Error('User credit record not found');
       }
     } catch (err) {
       setError(err as Error);
