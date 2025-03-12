@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
@@ -85,13 +84,29 @@ serve(async (req) => {
       );
     }
 
+    // Analyze if the prompt would benefit from visualizations
+    const shouldVisualize = await shouldUseVisualization(prompt);
+    
     // Generate content using Hugging Face API
-    const generatedContent = await generateContentWithHuggingFace(
+    const generatedContentResponse = await generateContentWithHuggingFace(
       prompt, 
       negativePrompt, 
       wordCount, 
-      tone
+      tone,
+      shouldVisualize.shouldVisualize
     );
+    
+    let generatedContent = generatedContentResponse.text;
+    let visualizationData = null;
+    
+    // If visualization is recommended, extract and prepare visualization data
+    if (shouldVisualize.shouldVisualize && generatedContentResponse.visualizationData) {
+      visualizationData = {
+        type: shouldVisualize.visualizationType,
+        data: generatedContentResponse.visualizationData,
+        title: shouldVisualize.title || "Generated Visualization"
+      };
+    }
 
     // Deduct credits if the user has them
     if (credits) {
@@ -111,6 +126,7 @@ serve(async (req) => {
         user_id: userId,
         title: prompt.substring(0, 50) + (prompt.length > 50 ? "..." : ""),
         content: generatedContent,
+        visualization_data: visualizationData,
         type: toolType || "general"
       })
       .select()
@@ -123,7 +139,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         content: generatedContent,
-        contentId: savedContent?.id || null
+        contentId: savedContent?.id || null,
+        visualizationData: visualizationData
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -135,6 +152,76 @@ serve(async (req) => {
     );
   }
 });
+
+async function shouldUseVisualization(prompt: string): Promise<{
+  shouldVisualize: boolean;
+  visualizationType?: "chart" | "table" | "list" | "timeline";
+  title?: string;
+}> {
+  try {
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${HUGGING_FACE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          inputs: `You are an AI assistant that helps determine if a prompt would benefit from visualization. Analyze the following prompt and decide if it should include a chart, table, list, or timeline to better present the information, or if plain text is sufficient.
+
+Prompt: "${prompt}"
+
+First, determine if this prompt is asking for or would clearly benefit from a visualization. Then, if a visualization would be helpful, specify which type would be most appropriate.
+
+Your response must be in this format:
+Visualization: [Yes/No]
+Type: [chart/table/list/timeline, if applicable]
+Title: [Suggested title for the visualization, if applicable]
+Explanation: [Brief explanation of your decision]`,
+          parameters: {
+            max_new_tokens: 256,
+            temperature: 0.1,
+            do_sample: false,
+          },
+        }),
+      }
+    );
+
+    const result = await response.json();
+    
+    if (result.error) {
+      console.error("Error in visualization analysis:", result.error);
+      return { shouldVisualize: false };
+    }
+    
+    const analysisText = result[0]?.generated_text || "";
+    
+    // Parse the AI response to extract information
+    const shouldVisualize = /Visualization:\s*Yes/i.test(analysisText);
+    
+    if (!shouldVisualize) {
+      return { shouldVisualize: false };
+    }
+    
+    // Extract visualization type
+    const typeMatch = analysisText.match(/Type:\s*(chart|table|list|timeline)/i);
+    const visualizationType = typeMatch ? typeMatch[1].toLowerCase() as "chart" | "table" | "list" | "timeline" : undefined;
+    
+    // Extract title
+    const titleMatch = analysisText.match(/Title:\s*(.+?)(?=\n|$)/i);
+    const title = titleMatch ? titleMatch[1].trim() : undefined;
+    
+    return {
+      shouldVisualize,
+      visualizationType,
+      title
+    };
+  } catch (error) {
+    console.error("Error in visualization analysis:", error);
+    return { shouldVisualize: false };
+  }
+}
 
 async function checkForHaramContent(prompt: string): Promise<{isHaram: boolean, explanation?: string, haramPhrases?: string[], categories?: string[]}> {
   try {
@@ -332,12 +419,18 @@ Provide ONLY the rewritten prompt without any explanation or introduction.`,
   }
 }
 
+interface ContentGenerationResult {
+  text: string;
+  visualizationData?: any;
+}
+
 async function generateContentWithHuggingFace(
   prompt: string, 
   negativePrompt?: string, 
   wordCount?: number,
-  tone?: string
-): Promise<string> {
+  tone?: string,
+  includeVisualization: boolean = false
+): Promise<ContentGenerationResult> {
   try {
     // Construct a more detailed prompt
     let enhancedPrompt = prompt;
@@ -354,8 +447,25 @@ async function generateContentWithHuggingFace(
       enhancedPrompt = `${enhancedPrompt} (avoid: ${negativePrompt})`;
     }
     
-    // Add specific instruction for halal content
-    enhancedPrompt = `Generate content that is halal (permissible according to Islamic principles) about the following: ${enhancedPrompt}`;
+    // Add specific instructions for halal content and visualization if needed
+    if (includeVisualization) {
+      enhancedPrompt = `Generate content that is halal (permissible according to Islamic principles) about the following: ${enhancedPrompt}
+
+If this content would benefit from a visualization (chart, table, list, etc.), please include structured data that can be used to create the visualization at the end of your response.
+
+For tables or lists, format the data as a JSON array at the end of your response, labeled with ===VISUALIZATION_DATA=== before the JSON.
+For charts, provide the data points as a JSON object with labels and values.
+
+Example for a chart:
+===VISUALIZATION_DATA===
+{"labels": ["Category A", "Category B", "Category C"], "values": [10, 25, 15]}
+
+Example for a table:
+===VISUALIZATION_DATA===
+[{"column1": "value1", "column2": "value2"}, {"column1": "value3", "column2": "value4"}]`;
+    } else {
+      enhancedPrompt = `Generate content that is halal (permissible according to Islamic principles) about the following: ${enhancedPrompt}`;
+    }
 
     const response = await fetch(
       "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
@@ -381,12 +491,32 @@ async function generateContentWithHuggingFace(
     
     if (result.error) {
       console.error("Hugging Face API error:", result.error);
-      return "Error generating content. Please try again later.";
+      return { text: "Error generating content. Please try again later." };
     }
     
-    return result[0].generated_text || "No content generated";
+    const generatedText = result[0]?.generated_text || "No content generated";
+    
+    // Check if the response contains visualization data
+    const visualizationDataMatch = generatedText.match(/===VISUALIZATION_DATA===\s*(\{.*\}|\[.*\])/s);
+    
+    if (visualizationDataMatch && visualizationDataMatch[1]) {
+      try {
+        const jsonData = JSON.parse(visualizationDataMatch[1].trim());
+        
+        // Return both the text (with visualization data marker removed) and the parsed data
+        return { 
+          text: generatedText.replace(/===VISUALIZATION_DATA===\s*(\{.*\}|\[.*\])/s, "").trim(),
+          visualizationData: jsonData
+        };
+      } catch (error) {
+        console.error("Error parsing visualization data:", error);
+        return { text: generatedText };
+      }
+    }
+    
+    return { text: generatedText };
   } catch (error) {
     console.error("Error generating content with Hugging Face:", error);
-    return "Error generating content. Please try again later.";
+    return { text: "Error generating content. Please try again later." };
   }
 }

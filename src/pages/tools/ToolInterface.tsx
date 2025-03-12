@@ -17,11 +17,24 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Download, Bookmark, Sparkles, Edit2, Check, X } from "lucide-react";
+import { 
+  AlertCircle, 
+  Download, 
+  Bookmark, 
+  Sparkles, 
+  Edit2, 
+  Check, 
+  X, 
+  BarChart4, 
+  Table as TableIcon,
+  List,
+  Clock 
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/use-credits';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import VisualizationRenderer from '@/components/visualizations/VisualizationRenderer';
 
 const ToolInterface = () => {
   const { toolType } = useParams<{ toolType: string }>();
@@ -44,6 +57,11 @@ const ToolInterface = () => {
   } | null>(null);
   const [halalSuggestion, setHalalSuggestion] = useState<string | null>(null);
   const [showSuggestionDialog, setShowSuggestionDialog] = useState(false);
+  const [visualizationData, setVisualizationData] = useState<{
+    type: "chart" | "table" | "list" | "timeline";
+    data: any;
+    title: string;
+  } | null>(null);
 
   const toolTypeLabel = () => {
     switch (toolType) {
@@ -96,6 +114,7 @@ const ToolInterface = () => {
     setError(null);
     setHaramDetails(null);
     setHalalSuggestion(null);
+    setVisualizationData(null);
 
     try {
       const currentPrompt = useHalalSuggestion && halalSuggestion ? halalSuggestion : prompt;
@@ -138,6 +157,12 @@ const ToolInterface = () => {
 
       setGeneratedContent(data.content);
       setContentId(data.contentId);
+      
+      // Handle visualization data if present
+      if (data.visualizationData) {
+        setVisualizationData(data.visualizationData);
+      }
+      
       refetchCredits(); // Refresh credits after generation
     } catch (error) {
       console.error("Error generating content:", error);
@@ -178,6 +203,7 @@ const ToolInterface = () => {
           user_id: user.id,
           title: prompt.substring(0, 50) + (prompt.length > 50 ? "..." : ""),
           content: generatedContent,
+          visualization_data: visualizationData,
           type: toolType || "general"
         })
         .select()
@@ -206,6 +232,38 @@ const ToolInterface = () => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const downloadVisualization = () => {
+    if (!visualizationData) return;
+    
+    // For now, just download the JSON data
+    // In a real application, you'd convert the chart/visualization to PNG or SVG
+    const element = document.createElement("a");
+    const file = new Blob([JSON.stringify(visualizationData.data, null, 2)], { type: "application/json" });
+    element.href = URL.createObjectURL(file);
+    element.download = `${visualizationData.title || "visualization"}.json`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  // Get the appropriate icon for the visualization type
+  const getVisualizationIcon = () => {
+    if (!visualizationData) return null;
+    
+    switch (visualizationData.type) {
+      case "chart":
+        return <BarChart4 className="h-5 w-5" />;
+      case "table":
+        return <TableIcon className="h-5 w-5" />;
+      case "list":
+        return <List className="h-5 w-5" />;
+      case "timeline":
+        return <Clock className="h-5 w-5" />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -370,7 +428,7 @@ const ToolInterface = () => {
             </Card>
           </div>
 
-          <div>
+          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Generated Content</CardTitle>
@@ -399,7 +457,7 @@ const ToolInterface = () => {
                     </Button>
                   </div>
                 </div>
-                <div className="relative min-h-[400px] border rounded-lg p-4 bg-muted/20">
+                <div className="relative min-h-[300px] border rounded-lg p-4 bg-muted/20">
                   {generating ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
@@ -417,6 +475,36 @@ const ToolInterface = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Visualization Card - Only show when there's visualization data */}
+            {visualizationData && (
+              <Card>
+                <CardHeader className="pb-0">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="flex items-center gap-2">
+                      {getVisualizationIcon()}
+                      {visualizationData.title}
+                    </CardTitle>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={downloadVisualization}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="border rounded-lg p-4 bg-muted/20 overflow-auto">
+                    <VisualizationRenderer 
+                      data={visualizationData.data} 
+                      type={visualizationData.type} 
+                      title={visualizationData.title} 
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
