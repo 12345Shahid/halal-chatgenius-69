@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/Button";
-import { Coins, Share2, PlayCircle, History, Copy, Folder } from "lucide-react";
+import { Coins, Share2, PlayCircle, History, Copy, Folder, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useCredits } from "@/hooks/use-credits";
 import { useReferral } from "@/hooks/use-referral";
+import { exportAllFilesAsCsv } from "@/utils/export-utils";
+import { FileType, FolderType } from "@/types/file";
 
 interface Activity {
   id: string;
@@ -26,6 +28,9 @@ const Dashboard = () => {
   const { referralLink } = useReferral();
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [files, setFiles] = useState<FileType[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -49,6 +54,47 @@ const Dashboard = () => {
         } else {
           setRecentActivity(activityData || []);
         }
+
+        // Fetch files and folders for export functionality
+        const { data: contentData, error: contentError } = await supabase
+          .from('content')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (contentError) {
+          console.error("Error fetching content:", contentError);
+        } else {
+          // Create file objects from content data
+          const fileData: FileType[] = contentData?.map(item => ({
+            id: item.id,
+            name: item.title,
+            content: item.content,
+            type: item.type,
+            folder: item.folder,
+            user_id: item.user_id,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            is_favorite: false
+          })) || [];
+          
+          setFiles(fileData);
+          
+          // Create fake folders from the content data
+          const uniqueFolders: { [key: string]: FolderType } = {};
+          
+          contentData?.forEach(item => {
+            if (item.folder && !uniqueFolders[item.folder]) {
+              uniqueFolders[item.folder] = {
+                id: item.folder,
+                name: item.folder,
+                user_id: user?.id || '',
+                created_at: item.created_at
+              };
+            }
+          });
+          
+          setFolders(Object.values(uniqueFolders));
+        }
       } catch (error) {
         console.error("Error loading dashboard data:", error);
       } finally {
@@ -63,6 +109,19 @@ const Dashboard = () => {
     if (referralLink) {
       navigator.clipboard.writeText(referralLink);
       toast.success("Referral link copied to clipboard!");
+    }
+  };
+
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    try {
+      exportAllFilesAsCsv(files, folders);
+      toast.success("All files and folders exported as CSV");
+    } catch (error) {
+      console.error("Error exporting files:", error);
+      toast.error("Failed to export files");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -97,9 +156,19 @@ const Dashboard = () => {
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-semibold">Dashboard</h1>
-          <Button onClick={() => navigate("/tools")}>
-            Create New Content
-          </Button>
+          <div className="flex space-x-2">
+            <Button 
+              onClick={handleExportAll}
+              disabled={isExporting || files.length === 0}
+              variant="outline"
+            >
+              {isExporting ? "Exporting..." : "Export All Files"}
+              <Download className="ml-2 h-4 w-4" />
+            </Button>
+            <Button onClick={() => navigate("/tools")}>
+              Create New Content
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

@@ -8,6 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { Save, ChevronLeft, Copy, Download, Share2, Trash2, Edit, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportAsTxt, exportAsPdf, exportAsCsv } from "@/utils/export-utils";
+import { FileType } from "@/types/file";
 
 interface ContentData {
   id: string;
@@ -133,15 +141,33 @@ Halal food offers a combination of health, ethical, and spiritual benefits. By f
     toast.success("Content copied to clipboard");
   };
 
-  const downloadContent = () => {
-    const element = document.createElement("a");
-    const file = new Blob([editedContent], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${editedTitle.replace(/ /g, '-').toLowerCase()}.md`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    toast.success("Content downloaded");
+  const exportContent = (format: 'txt' | 'pdf' | 'csv') => {
+    if (!content) return;
+    
+    const fileData: FileType = {
+      id: content.id,
+      name: editedTitle,
+      content: editedContent,
+      type: content.type,
+      user_id: user?.id || '',
+      created_at: content.createdAt,
+      updated_at: content.createdAt,
+      is_favorite: false
+    };
+    
+    switch (format) {
+      case 'txt':
+        exportAsTxt(fileData);
+        break;
+      case 'pdf':
+        exportAsPdf(fileData);
+        break;
+      case 'csv':
+        exportAsCsv(fileData);
+        break;
+    }
+    
+    toast.success(`Content exported as ${format.toUpperCase()}`);
   };
 
   const shareContent = () => {
@@ -251,10 +277,10 @@ Halal food offers a combination of health, ethical, and spiritual benefits. By f
               <Button 
                 size="sm" 
                 onClick={handleSave}
-                isLoading={isSaving}
+                disabled={isSaving}
               >
                 {!isSaving && <Save className="h-4 w-4 mr-1" />}
-                Save
+                {isSaving ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>
@@ -283,14 +309,25 @@ Halal food offers a combination of health, ethical, and spiritual benefits. By f
                     Copy
                   </Button>
                   
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={downloadContent}
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Download
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <Download className="h-4 w-4 mr-1" />
+                        Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => exportContent('txt')}>
+                        Export as TXT
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportContent('pdf')}>
+                        Export as PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportContent('csv')}>
+                        Export as CSV
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   
                   <Button 
                     variant="ghost" 
