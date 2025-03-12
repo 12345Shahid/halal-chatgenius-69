@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainNav from "@/components/layout/MainNav";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Coins, Share2, PlayCircle, History, Copy, Folder } from "lucide-react";
 import { toast } from "sonner";
 import { useCredits } from "@/hooks/use-credits";
+import { useReferral } from "@/hooks/use-referral";
 
 interface Activity {
   id: string;
@@ -22,9 +22,9 @@ const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { credits, loading: creditsLoading } = useCredits();
+  const { referralLink } = useReferral();
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [referralLink, setReferralLink] = useState("");
 
   useEffect(() => {
     if (!user) {

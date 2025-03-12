@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { FolderType } from "@/types/file";
 import { Folder, Trash2, Edit } from "lucide-react";
 import { 

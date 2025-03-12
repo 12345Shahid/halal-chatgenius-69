@@ -19,19 +19,15 @@ export const useCredits = () => {
 
     setLoading(true);
     try {
-      // Try to fetch existing credits
+      // Try to fetch existing credits using direct query since we're having issues with RPC
       const { data, error } = await supabase
-        .rpc('get_user_credits', { user_id_param: user.id });
-      
-      if (error) {
-        // If RPC function doesn't exist, fall back to direct query
-        const { data: directData, error: directError } = await supabase
-          .from('credits')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
+        .from('credits')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
           
-        if (directError && directError.code === 'PGRST116') {
+      if (error) {
+        if (error.code === 'PGRST116') {
           // If no credits exist, create a new record
           const { data: newCredits, error: createError } = await supabase
             .from('credits')
@@ -49,10 +45,8 @@ export const useCredits = () => {
           }
           
           setCredits(newCredits as Credit);
-        } else if (directError) {
-          throw directError;
         } else {
-          setCredits(directData as Credit);
+          throw error;
         }
       } else {
         setCredits(data as Credit);

@@ -1,20 +1,14 @@
-
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import MainNav from "@/components/layout/MainNav";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Bookmark, Download, Sparkles } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { useCredits } from "@/hooks/use-credits";
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import MainNav from '@/components/layout/MainNav';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCredits } from '@/hooks/use-credits';
 
 const ToolInterface = () => {
   const { toolType } = useParams<{ toolType: string }>();
@@ -204,10 +198,12 @@ const ToolInterface = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
             <Card>
+              <CardHeader>
+                <CardTitle>What would you like to create?</CardTitle>
+              </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="prompt">What would you like to create?</Label>
                     <Textarea
                       id="prompt"
                       placeholder={toolPromptPlaceholder()}
@@ -308,6 +304,9 @@ const ToolInterface = () => {
 
           <div>
             <Card>
+              <CardHeader>
+                <CardTitle>Generated Content</CardTitle>
+              </CardHeader>
               <CardContent className="pt-6">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-medium">Generated Content</h3>

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import MainNav from "@/components/layout/MainNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +8,7 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { 
   Dialog,
   DialogContent,
@@ -31,7 +30,8 @@ import {
   FolderPlus, 
   Star,
   ArrowLeft,
-  Download
+  Download,
+  FileText
 } from "lucide-react";
 import { FileType, FolderType } from "@/types/file";
 import FileCard from "@/components/file/FileCard";
@@ -54,72 +54,61 @@ const FileManager = () => {
   const [newFileContent, setNewFileContent] = useState("");
   const [newFileType, setNewFileType] = useState("general");
   
-  // Load folders and files
-  useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-    
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch folders
-        const { data: folderData, error: folderError } = await supabase
-          .from("folders")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("name");
-          
-        if (folderError) {
-          console.error("Error loading folders:", folderError);
-          toast.error("Failed to load folders");
-        } else {
-          setFolders(folderData || []);
-        }
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Since the tables may not exist in the Supabase types yet, we need to use type casting
+      
+      // Fetch folders
+      const { data: folderData, error: folderError } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("name");
         
-        // Fetch files (with no folder)
-        let fileQuery = supabase
-          .from("files")
-          .select("*")
-          .eq("user_id", user.id)
-          .is("folder_id", null)
-          .order("created_at", { ascending: false });
-          
-        const { data: fileData, error: fileError } = await fileQuery;
-        
-        if (fileError) {
-          console.error("Error loading files:", fileError);
-          toast.error("Failed to load files");
-        } else {
-          // Get favorites for these files
-          const { data: favoritesData } = await supabase
-            .from("favorites")
-            .select("file_id")
-            .eq("user_id", user.id);
-            
-          const favoriteIds = new Set(favoritesData?.map(fav => fav.file_id) || []);
-          
-          // Mark favorite files
-          const filesWithFavorites = fileData?.map(file => ({
-            ...file,
-            is_favorite: favoriteIds.has(file.id)
-          })) || [];
-          
-          setFiles(filesWithFavorites);
-        }
-      } catch (error) {
-        console.error("Error in loadData:", error);
-        toast.error("Failed to load content");
-      } finally {
-        setIsLoading(false);
+      if (folderError) {
+        console.error("Error loading folders:", folderError);
+        toast.error("Failed to load folders");
+      } else {
+        setFolders(folderData as unknown as FolderType[]);
       }
-    };
-    
-    loadData();
-  }, [user, navigate]);
-  
-  // Load files for a specific folder
+      
+      // Fetch files (with no folder)
+      const { data: fileData, error: fileError } = await supabase
+        .from("files")
+        .select("*")
+        .eq("user_id", user?.id)
+        .is("folder_id", null)
+        .order("created_at", { ascending: false });
+        
+      if (fileError) {
+        console.error("Error loading files:", fileError);
+        toast.error("Failed to load files");
+      } else {
+        // Get favorites for these files
+        const { data: favoritesData } = await supabase
+          .from("favorites")
+          .select("file_id")
+          .eq("user_id", user?.id);
+          
+        const favoriteIds = new Set((favoritesData || []).map(fav => fav.file_id));
+        
+        // Mark favorite files
+        const filesWithFavorites = (fileData || []).map(file => ({
+          ...file,
+          is_favorite: favoriteIds.has(file.id)
+        }));
+        
+        setFiles(filesWithFavorites as unknown as FileType[]);
+      }
+    } catch (error) {
+      console.error("Error in loadData:", error);
+      toast.error("Failed to load content");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loadFolderFiles = async (folderId: string) => {
     setIsLoading(true);
     try {
@@ -136,7 +125,7 @@ const FileManager = () => {
         return;
       }
       
-      setCurrentFolder(folderData);
+      setCurrentFolder(folderData as unknown as FolderType);
       
       // Get files in folder
       const { data: fileData, error: fileError } = await supabase
@@ -157,15 +146,15 @@ const FileManager = () => {
         .select("file_id")
         .eq("user_id", user?.id);
         
-      const favoriteIds = new Set(favoritesData?.map(fav => fav.file_id) || []);
+      const favoriteIds = new Set((favoritesData || []).map(fav => fav.file_id));
       
       // Mark favorite files
-      const filesWithFavorites = fileData?.map(file => ({
+      const filesWithFavorites = (fileData || []).map(file => ({
         ...file,
         is_favorite: favoriteIds.has(file.id)
-      })) || [];
+      }));
       
-      setFiles(filesWithFavorites);
+      setFiles(filesWithFavorites as unknown as FileType[]);
     } catch (error) {
       console.error("Error in loadFolderFiles:", error);
       toast.error("Failed to load folder content");
@@ -173,8 +162,7 @@ const FileManager = () => {
       setIsLoading(false);
     }
   };
-  
-  // Create a new folder
+
   const createFolder = async () => {
     if (!newFolderName.trim() || !user) return;
     
@@ -194,7 +182,7 @@ const FileManager = () => {
         return;
       }
       
-      setFolders([...folders, data]);
+      setFolders([...folders, data as unknown as FolderType]);
       setNewFolderName("");
       setIsCreateFolderOpen(false);
       toast.success("Folder created successfully");
@@ -203,8 +191,7 @@ const FileManager = () => {
       toast.error("Failed to create folder");
     }
   };
-  
-  // Create a new file
+
   const createFile = async () => {
     if (!newFileName.trim() || !user) return;
     
@@ -227,7 +214,7 @@ const FileManager = () => {
         return;
       }
       
-      setFiles([data, ...files]);
+      setFiles([data as unknown as FileType, ...files]);
       setNewFileName("");
       setNewFileContent("");
       setIsCreateFileOpen(false);
@@ -237,8 +224,7 @@ const FileManager = () => {
       toast.error("Failed to create file");
     }
   };
-  
-  // Delete a folder
+
   const deleteFolder = async (folderId: string) => {
     if (!confirm("Are you sure you want to delete this folder and all its contents?")) return;
     
@@ -274,8 +260,7 @@ const FileManager = () => {
       toast.error("Failed to delete folder");
     }
   };
-  
-  // Delete a file
+
   const deleteFile = async (fileId: string) => {
     if (!confirm("Are you sure you want to delete this file?")) return;
     
@@ -311,8 +296,7 @@ const FileManager = () => {
       toast.error("Failed to delete file");
     }
   };
-  
-  // Toggle favorite status
+
   const toggleFavorite = async (fileId: string, isFavorite: boolean) => {
     try {
       if (isFavorite) {
@@ -358,13 +342,12 @@ const FileManager = () => {
       toast.error("Failed to update favorites");
     }
   };
-  
-  // Share a file
+
   const shareFile = async (fileId: string) => {
     try {
       // Generate a random token
       const shareToken = Math.random().toString(36).substring(2, 15) + 
-                         Math.random().toString(36).substring(2, 15);
+                        Math.random().toString(36).substring(2, 15);
       
       // Create share record
       const { error } = await supabase
@@ -391,8 +374,68 @@ const FileManager = () => {
       toast.error("Failed to share file");
     }
   };
-  
-  // Filter files and folders based on search query and filter
+
+  const loadFavorites = async () => {
+    setIsLoading(true);
+    try {
+      const { data: favoritesData, error: favoritesError } = await supabase
+        .from("favorites")
+        .select("file_id, files:file_id(*)");
+        
+      if (favoritesError) {
+        console.error("Error loading favorites:", favoritesError);
+        toast.error("Failed to load favorites");
+        return;
+      }
+      
+      // Extract files and mark as favorites
+      const favoriteFiles = favoritesData
+        ?.filter(item => item.files)
+        .map(item => ({ 
+          ...item.files, 
+          is_favorite: true 
+        }));
+        
+      setFiles(favoriteFiles as unknown as FileType[] || []);
+      setCurrentFolder(null);
+    } catch (error) {
+      console.error("Error in loadFavorites:", error);
+      toast.error("Failed to load favorites");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renameFolder = async (folderId: string, newName: string) => {
+    try {
+      const { error } = await supabase
+        .from("folders")
+        .update({ name: newName })
+        .eq("id", folderId);
+        
+      if (error) {
+        console.error("Error renaming folder:", error);
+        toast.error("Failed to rename folder");
+        return;
+      }
+      
+      // Update local state
+      setFolders(folders.map(folder => 
+        folder.id === folderId ? { ...folder, name: newName } : folder
+      ));
+      
+      // If current folder is being renamed, update that too
+      if (currentFolder?.id === folderId) {
+        setCurrentFolder({ ...currentFolder, name: newName });
+      }
+      
+      toast.success("Folder renamed successfully");
+    } catch (error) {
+      console.error("Error in renameFolder:", error);
+      toast.error("Failed to rename folder");
+    }
+  };
+
   const filteredContent = () => {
     let filteredFiles = files;
     let filteredFolders = folders;
@@ -418,8 +461,7 @@ const FileManager = () => {
     
     return { filteredFiles, filteredFolders };
   };
-  
-  // Export all files as CSV
+
   const exportAsCSV = () => {
     try {
       // Create CSV content
@@ -445,8 +487,7 @@ const FileManager = () => {
       toast.error("Failed to export files");
     }
   };
-  
-  // Navigate back to root from folder
+
   const goBack = () => {
     setCurrentFolder(null);
     setFiles([]);
@@ -493,76 +534,9 @@ const FileManager = () => {
     
     loadRootFiles();
   };
-  
-  // Load favorite files
-  const loadFavorites = async () => {
-    setIsLoading(true);
-    try {
-      const { data: favoritesData, error: favoritesError } = await supabase
-        .from("favorites")
-        .select(`
-          file_id,
-          files:file_id(*)
-        `)
-        .eq("user_id", user?.id);
-        
-      if (favoritesError) {
-        console.error("Error loading favorites:", favoritesError);
-        toast.error("Failed to load favorites");
-        return;
-      }
-      
-      // Extract files and mark as favorites
-      const favoriteFiles = favoritesData
-        ?.map(item => {
-          const file = item.files as unknown as FileType;
-          return file ? { ...file, is_favorite: true } : null;
-        })
-        .filter(Boolean) as FileType[];
-        
-      setFiles(favoriteFiles || []);
-      setCurrentFolder(null);
-    } catch (error) {
-      console.error("Error in loadFavorites:", error);
-      toast.error("Failed to load favorites");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Rename a folder
-  const renameFolder = async (folderId: string, newName: string) => {
-    try {
-      const { error } = await supabase
-        .from("folders")
-        .update({ name: newName })
-        .eq("id", folderId);
-        
-      if (error) {
-        console.error("Error renaming folder:", error);
-        toast.error("Failed to rename folder");
-        return;
-      }
-      
-      // Update local state
-      setFolders(folders.map(folder => 
-        folder.id === folderId ? { ...folder, name: newName } : folder
-      ));
-      
-      // If current folder is being renamed, update that too
-      if (currentFolder?.id === folderId) {
-        setCurrentFolder({ ...currentFolder, name: newName });
-      }
-      
-      toast.success("Folder renamed successfully");
-    } catch (error) {
-      console.error("Error in renameFolder:", error);
-      toast.error("Failed to rename folder");
-    }
-  };
-  
+
   const { filteredFiles, filteredFolders } = filteredContent();
-  
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <MainNav />
