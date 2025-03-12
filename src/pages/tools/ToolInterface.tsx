@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,8 +16,8 @@ import {
   SelectTrigger,
   SelectValue 
 } from '@/components/ui/select';
-import { Alert, AlertCircle, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Sparkles, Download, Bookmark } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Download, Bookmark, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCredits } from '@/hooks/use-credits';
