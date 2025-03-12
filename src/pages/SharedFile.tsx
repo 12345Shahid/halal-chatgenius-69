@@ -1,7 +1,9 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileType, SharedFile } from '@/types/file';
+import { FileType } from '@/types/file';
+import type { SharedFile as SharedFileType } from '@/types/file';
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from 'sonner';
@@ -10,7 +12,7 @@ import { Copy, Download } from 'lucide-react';
 const SharedFile = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [file, setFile] = useState<FileType | null>(null);
-  const [sharedFileDetails, setSharedFileDetails] = useState<SharedFile | null>(null);
+  const [sharedFileDetails, setSharedFileDetails] = useState<SharedFileType | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -25,9 +27,9 @@ const SharedFile = () => {
       setLoading(true);
       try {
         const { data: sharedFileData, error: sharedFileError } = await supabase
-          .from('shared_files')
+          .from('shared_content')
           .select('*')
-          .eq('share_token', shareToken)
+          .eq('share_id', shareToken)
           .single();
 
         if (sharedFileError) {
@@ -43,12 +45,21 @@ const SharedFile = () => {
           return;
         }
 
-        setSharedFileDetails(sharedFileData);
+        // Create a proper SharedFileType object
+        const sharedDetails: SharedFileType = {
+          id: sharedFileData.id,
+          file_id: sharedFileData.content_id,
+          shared_by: sharedFileData.user_id,
+          share_token: sharedFileData.share_id,
+          created_at: sharedFileData.created_at
+        };
+        
+        setSharedFileDetails(sharedDetails);
 
         const { data: fileData, error: fileError } = await supabase
           .from('content')
           .select('*')
-          .eq('id', sharedFileData.file_id)
+          .eq('id', sharedDetails.file_id)
           .single();
 
         if (fileError) {
@@ -58,7 +69,20 @@ const SharedFile = () => {
           return;
         }
 
-        setFile(fileData);
+        // Convert to our FileType
+        const fileContent: FileType = {
+          id: fileData.id,
+          name: fileData.title,
+          content: fileData.content,
+          type: fileData.type,
+          folder: fileData.folder,
+          user_id: fileData.user_id,
+          created_at: fileData.created_at,
+          updated_at: fileData.updated_at,
+          is_favorite: false
+        };
+        
+        setFile(fileContent);
       } catch (error) {
         console.error('Unexpected error:', error);
         toast.error('Unexpected error occurred.');
@@ -109,7 +133,9 @@ const SharedFile = () => {
       <Card>
         <CardHeader>
           <CardTitle>{file.name}</CardTitle>
-          <CardDescription>Shared by: {sharedFileDetails?.shared_by}</CardDescription>
+          <CardDescription>
+            Shared on: {new Date(sharedFileDetails?.created_at || '').toLocaleDateString()}
+          </CardDescription>
         </CardHeader>
         <CardContent className="prose prose-sm max-w-none">
           <p>{file.content}</p>

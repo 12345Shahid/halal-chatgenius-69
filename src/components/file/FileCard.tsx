@@ -1,106 +1,78 @@
-
-import { useState } from "react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import React from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { IconButton } from "@/components/ui/icon-button";
+import { MoreVertical, FileText, Trash2, Star, StarOff } from 'lucide-react';
+import { format } from 'date-fns';
 import { Button } from "@/components/ui/Button";
-import { FileType } from "@/types/file";
-import { 
-  Star, 
-  StarOff, 
-  Share2, 
-  Trash2, 
-  Download, 
-  FileText, 
-  Edit
-} from "lucide-react";
-import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 
 interface FileCardProps {
-  file: FileType;
+  file: {
+    id: string;
+    name: string;
+    content: string;
+    type: string;
+    folder?: string | null;
+    user_id: string;
+    created_at: string;
+    updated_at: string;
+    is_favorite: boolean;
+  };
   onDelete: (fileId: string) => void;
-  onToggleFavorite: (fileId: string, isFavorite: boolean) => void;
-  onShare: (fileId: string) => void;
+  toggleFavorite: (fileId: string, isFavorite: boolean) => void;
 }
 
-const FileCard = ({ file, onDelete, onToggleFavorite, onShare }: FileCardProps) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
-  
-  const handleDownload = () => {
-    const element = document.createElement("a");
-    const fileBlob = new Blob([file.content], { type: "text/plain" });
-    element.href = URL.createObjectURL(fileBlob);
-    element.download = `${file.name}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    toast.success("File downloaded successfully");
-  };
-
-  const handleEdit = () => {
-    navigate(`/editor/${file.id}`);
-  };
+const FileCard: React.FC<FileCardProps> = ({ file, onDelete, toggleFavorite }) => {
+  const formattedDate = format(new Date(file.created_at), 'PPP');
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center justify-between">
-          <div className="flex items-center">
-            <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
-            <span className="truncate">{file.name}</span>
-          </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => onToggleFavorite(file.id, !file.is_favorite)}
-          >
-            {file.is_favorite ? (
-              <Star className="h-4 w-4 text-yellow-400" />
-            ) : (
-              <StarOff className="h-4 w-4 text-muted-foreground" />
-            )}
-          </Button>
-        </CardTitle>
+    <Card className="w-full">
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <CardTitle className="text-sm font-medium">{file.name}</CardTitle>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton aria-label="Open menu">
+              <MoreVertical className="h-4 w-4" />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" forceMount>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => toggleFavorite(file.id, !file.is_favorite)}>
+              {file.is_favorite ? (
+                <>
+                  <StarOff className="mr-2 h-4 w-4" />
+                  Remove from Favorites
+                </>
+              ) : (
+                <>
+                  <Star className="mr-2 h-4 w-4" />
+                  Add to Favorites
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onDelete(file.id)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </CardHeader>
-      <CardContent className="flex-grow">
-        <p className="text-sm text-muted-foreground line-clamp-3">{file.content}</p>
+      <CardContent>
+        <CardDescription className="text-xs text-muted-foreground">
+          {file.content.substring(0, 50)}...
+        </CardDescription>
       </CardContent>
-      <CardFooter className="pt-2 flex justify-between">
-        <div className="flex gap-1">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={handleEdit} 
-            title="Edit"
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={handleDownload} 
-            title="Download"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => onShare(file.id)} 
-            title="Share"
-          >
-            <Share2 className="h-4 w-4" />
-          </Button>
-        </div>
-        <Button 
-          variant="destructive" 
-          size="icon" 
-          onClick={() => onDelete(file.id)} 
-          disabled={isLoading}
-          title="Delete"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+      <CardFooter className="text-xs text-muted-foreground py-2">
+        Created on {formattedDate}
       </CardFooter>
     </Card>
   );

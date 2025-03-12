@@ -1,457 +1,432 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { FileType, FolderType } from "@/types/file";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Folder, File, Plus, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import FolderCard from "@/components/file/FolderCard";
-import FileCard from "@/components/file/FileCard";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { FileType, FolderType } from '@/types/file';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { Search, FolderPlus, FilePlus, FileText } from 'lucide-react';
+import FileCard from '@/components/file/FileCard';
+import FolderCard from '@/components/file/FolderCard';
 
 const FileManager = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [folders, setFolders] = useState<FolderType[]>([]);
+  // State management for files and folders
   const [files, setFiles] = useState<FileType[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
-  const [isFileDialogOpen, setIsFileDialogOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFileName, setNewFileName] = useState("");
-  const [newFileContent, setNewFileContent] = useState("");
-	const [newFileType, setNewFileType] = useState("blog");
+  const [folders, setFolders] = useState<FolderType[]>([]);
+  const [activeFolder, setActiveFolder] = useState<FolderType | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isFavoriteFilter, setIsFavoriteFilter] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileContent, setNewFileContent] = useState('');
+  
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
+    if (user) {
+      loadFilesAndFolders();
     }
+  }, [user]);
 
-    fetchData();
-  }, [user, navigate, selectedFolder, isFavoriteFilter]);
-
-  const fetchData = async () => {
+  const loadFilesAndFolders = async () => {
     setIsLoading(true);
+    
     try {
-      // Fetch folders
-      let { data: foldersData, error: foldersError } = await supabase
-        .from("folders")
-        .select("*")
-        .eq("user_id", user.id);
+      // Here we'll just use the content table for now
+      // In a real implementation, you would query actual folders and files tables
+      const { data: contentData, error: contentError } = await supabase
+        .from('content')
+        .select('*')
+        .eq('user_id', user?.id);
 
-      if (foldersError) {
-        console.error("Error fetching folders:", foldersError);
-        toast.error("Failed to load folders");
-      } else {
-        setFolders(foldersData || []);
+      if (contentError) {
+        throw contentError;
       }
 
-      // Fetch files based on selected folder
-      let filesQuery = supabase
-        .from("files")
-        .select("*")
-        .eq("user_id", user.id)
-
-      if (selectedFolder) {
-        filesQuery = filesQuery.eq("folder_id", selectedFolder);
-      } else {
-        filesQuery = filesQuery.is("folder_id", null);
-      }
-
-      if (isFavoriteFilter) {
-        const { data: favorites, error: favoritesError } = await supabase
-          .from('favorites')
-          .select('file_id')
-          .eq('user_id', user.id);
-
-        if (favoritesError) {
-          console.error("Error fetching favorites:", favoritesError);
-          toast.error("Failed to load favorite files");
-        } else {
-          const favoriteFileIds = favorites.map(fav => fav.file_id);
-          filesQuery = filesQuery.in('id', favoriteFileIds);
+      // Create fake folders from the content data
+      const uniqueFolders: { [key: string]: FolderType } = {};
+      
+      contentData?.forEach(item => {
+        if (item.folder && !uniqueFolders[item.folder]) {
+          uniqueFolders[item.folder] = {
+            id: item.folder,
+            name: item.folder,
+            user_id: user?.id || '',
+            created_at: item.created_at
+          };
         }
-      }
+      });
+      
+      setFolders(Object.values(uniqueFolders));
 
-      let { data: filesData, error: filesError } = await filesQuery;
-
-      if (filesError) {
-        console.error("Error fetching files:", filesError);
-        toast.error("Failed to load files");
-      } else {
-        setFiles(filesData || []);
-      }
+      // Create file objects from content data
+      const fileData: FileType[] = contentData?.map(item => ({
+        id: item.id,
+        name: item.title,
+        content: item.content,
+        type: item.type,
+        folder: item.folder,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        is_favorite: false
+      })) || [];
+      
+      setFiles(fileData);
     } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load data");
+      console.error('Error loading files and folders:', error);
+      toast.error('Failed to load your files and folders');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFolderClick = (folderId: string) => {
-    setSelectedFolder(folderId);
+  const getFilesInFolder = () => {
+    if (!activeFolder) {
+      return files.filter(file => !file.folder);
+    }
+    return files.filter(file => file.folder === activeFolder.id);
   };
 
-  const handleBackToRoot = () => {
-    setSelectedFolder(null);
+  const getFavoriteFiles = () => {
+    return files.filter(file => file.is_favorite);
   };
 
-  const createNewFolder = async () => {
+  const getFilteredFiles = () => {
+    const filesInCurrentView = showFavorites ? getFavoriteFiles() : getFilesInFolder();
+    
+    if (!searchQuery) {
+      return filesInCurrentView;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return filesInCurrentView.filter(file => 
+      file.name.toLowerCase().includes(query) || 
+      file.content.toLowerCase().includes(query)
+    );
+  };
+
+  const getFilteredFolders = () => {
+    if (showFavorites || activeFolder) {
+      return [];
+    }
+    
+    if (!searchQuery) {
+      return folders;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return folders.filter(folder => folder.name.toLowerCase().includes(query));
+  };
+
+  const createFolder = async () => {
     if (!newFolderName.trim()) {
-      toast.error("Folder name cannot be empty");
+      toast.error('Please enter a folder name');
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from("folders")
-        .insert([{ user_id: user.id, name: newFolderName }]);
-
-      if (error) {
-        console.error("Error creating folder:", error);
-        toast.error("Failed to create folder");
-      } else {
-        toast.success("Folder created successfully!");
-        setNewFolderName("");
-        setIsFolderDialogOpen(false);
-        fetchData();
-      }
+      // Generate a unique ID for the folder
+      const folderId = crypto.randomUUID();
+      
+      // Create a new folder object
+      const newFolder: FolderType = {
+        id: folderId,
+        name: newFolderName.trim(),
+        user_id: user?.id || '',
+        created_at: new Date().toISOString()
+      };
+      
+      // Add to state first for immediate UI update
+      setFolders([...folders, newFolder]);
+      
+      // Close dialog
+      setNewFolderDialogOpen(false);
+      setNewFolderName('');
+      
+      toast.success('Folder created successfully');
     } catch (error) {
-      console.error("Error creating folder:", error);
-      toast.error("Failed to create folder");
+      console.error('Error creating folder:', error);
+      toast.error('Failed to create folder');
     }
   };
 
-  const createNewFile = async () => {
-    if (!newFileName.trim() || !newFileContent.trim()) {
-      toast.error("File name and content cannot be empty");
+  const createFile = async () => {
+    if (!newFileName.trim()) {
+      toast.error('Please enter a file name');
       return;
     }
 
     try {
-      const { error } = await supabase.from("files").insert([
-        {
-          user_id: user.id,
-          folder_id: selectedFolder,
-          name: newFileName,
-          content: newFileContent,
-					type: newFileType
-        },
-      ]);
-
-      if (error) {
-        console.error("Error creating file:", error);
-        toast.error("Failed to create file");
-      } else {
-        toast.success("File created successfully!");
-        setNewFileName("");
-        setNewFileContent("");
-        setIsFileDialogOpen(false);
-        fetchData();
-      }
+      // Create content entry in database
+      const { data, error } = await supabase
+        .from('content')
+        .insert({
+          title: newFileName.trim(),
+          content: newFileContent.trim(),
+          type: 'general',
+          folder: activeFolder ? activeFolder.id : null,
+          user_id: user?.id
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Create file object for our state
+      const newFile: FileType = {
+        id: data.id,
+        name: data.title,
+        content: data.content,
+        type: data.type,
+        folder: data.folder,
+        user_id: data.user_id,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        is_favorite: false
+      };
+      
+      // Add to state
+      setFiles([...files, newFile]);
+      
+      // Close dialog
+      setNewFileDialogOpen(false);
+      setNewFileName('');
+      setNewFileContent('');
+      
+      toast.success('File created successfully');
     } catch (error) {
-      console.error("Error creating file:", error);
-      toast.error("Failed to create file");
-    }
-  };
-
-  const deleteFolder = async (folderId: string) => {
-    try {
-      const { error } = await supabase
-        .from("folders")
-        .delete()
-        .eq("id", folderId)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Error deleting folder:", error);
-        toast.error("Failed to delete folder");
-      } else {
-        toast.success("Folder deleted successfully!");
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error deleting folder:", error);
-      toast.error("Failed to delete folder");
+      console.error('Error creating file:', error);
+      toast.error('Failed to create file');
     }
   };
 
   const deleteFile = async (fileId: string) => {
     try {
       const { error } = await supabase
-        .from("files")
+        .from('content')
         .delete()
-        .eq("id", fileId)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Error deleting file:", error);
-        toast.error("Failed to delete file");
-      } else {
-        toast.success("File deleted successfully!");
-        fetchData();
-      }
+        .eq('id', fileId);
+      
+      if (error) throw error;
+      
+      // Update state
+      setFiles(files.filter(file => file.id !== fileId));
+      
+      toast.success('File deleted successfully');
     } catch (error) {
-      console.error("Error deleting file:", error);
-      toast.error("Failed to delete file");
-    }
-  };
-
-  const renameFolder = async (folderId: string, newName: string) => {
-    try {
-      const { error } = await supabase
-        .from("folders")
-        .update({ name: newName })
-        .eq("id", folderId)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Error renaming folder:", error);
-        toast.error("Failed to rename folder");
-      } else {
-        toast.success("Folder renamed successfully!");
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error renaming folder:", error);
-      toast.error("Failed to rename folder");
-    }
-  };
-
-  const renameFile = async (fileId: string, newName: string) => {
-    try {
-      const { error } = await supabase
-        .from("files")
-        .update({ name: newName })
-        .eq("id", fileId)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Error renaming file:", error);
-        toast.error("Failed to rename file");
-      } else {
-        toast.success("File renamed successfully!");
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error renaming file:", error);
-      toast.error("Failed to rename file");
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file');
     }
   };
 
   const toggleFavorite = async (fileId: string, isFavorite: boolean) => {
-    try {
-      if (isFavorite) {
-        // Remove from favorites
-        const { error } = await supabase
-          .from('favorites')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('file_id', fileId);
+    // For now, just update the local state since we don't have a favorites table
+    setFiles(files.map(file => 
+      file.id === fileId ? { ...file, is_favorite: isFavorite } : file
+    ));
+    
+    toast.success(isFavorite ? 'Added to favorites' : 'Removed from favorites');
+  };
 
-        if (error) {
-          console.error("Error removing from favorites:", error);
-          toast.error("Failed to remove from favorites");
-          return;
-        }
-      } else {
-        // Add to favorites
-        const { error } = await supabase
-          .from('favorites')
-          .insert([{ user_id: user.id, file_id: fileId }]);
+  const handleFolderClick = (folder: FolderType) => {
+    setActiveFolder(folder);
+    setShowFavorites(false);
+  };
 
-        if (error) {
-          console.error("Error adding to favorites:", error);
-          toast.error("Failed to add to favorites");
-          return;
-        }
-      }
+  const navigateBack = () => {
+    setActiveFolder(null);
+  };
 
-      toast.success(`File ${isFavorite ? 'removed from' : 'added to'} favorites!`);
-      fetchData(); // Refresh the file list
-    } catch (error) {
-      console.error("Error toggling favorite:", error);
-      toast.error("Failed to toggle favorite");
+  const toggleFavoritesView = (checked: boolean) => {
+    setShowFavorites(checked);
+    if (checked) {
+      setActiveFolder(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">File Management</h1>
-
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            {selectedFolder ? (
-              <Button variant="ghost" onClick={handleBackToRoot}>
-                <Folder className="mr-2 h-4 w-4" />
-                Back to Root
-              </Button>
-            ) : (
-              <h2 className="text-lg font-semibold">Root Folder</h2>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="favorite-filter"
-              checked={isFavoriteFilter}
-              onCheckedChange={(checked) => setIsFavoriteFilter(checked || false)}
+    <div className="container mx-auto py-6">
+      <div className="mb-6 flex justify-between items-center">
+        <h1 className="text-3xl font-bold">
+          {showFavorites ? 'Favorites' : activeFolder ? activeFolder.name : 'My Files'}
+        </h1>
+        
+        <div className="flex space-x-2">
+          <Button 
+            onClick={() => setNewFileDialogOpen(true)}
+            variant="outline" 
+            className="flex items-center"
+          >
+            <FilePlus className="mr-2 h-5 w-5" />
+            New File
+          </Button>
+          
+          {!activeFolder && !showFavorites && (
+            <Button 
+              onClick={() => setNewFolderDialogOpen(true)}
+              variant="outline" 
+              className="flex items-center"
+            >
+              <FolderPlus className="mr-2 h-5 w-5" />
+              New Folder
+            </Button>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex flex-col md:flex-row gap-6 mb-6">
+        <div className="w-full md:w-2/3">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search files and folders..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <Label htmlFor="favorite-filter">Favorites Only</Label>
-          </div>
-
-          <div className="space-x-2">
-            <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Folder
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Create New Folder</DialogTitle>
-                  <CardDescription>Enter the name for the new folder.</CardDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                      Name
-                    </Label>
-                    <Input
-                      id="name"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      className="col-span-3"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" onClick={createNewFolder}>
-                    Create
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={isFileDialogOpen} onOpenChange={setIsFileDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <File className="mr-2 h-4 w-4" />
-                  Create File
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Create New File</DialogTitle>
-                  <CardDescription>Enter the details for the new file.</CardDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                      Name
-                    </Label>
-                    <Input
-                      id="name"
-                      value={newFileName}
-                      onChange={(e) => setNewFileName(e.target.value)}
-                      className="col-span-3"
-                    />
-                  </div>
-									<div className="grid grid-cols-4 items-center gap-4">
-										<Label htmlFor="type" className="text-right">
-											Type
-										</Label>
-										<Select onValueChange={setNewFileType} defaultValue={newFileType}>
-											<SelectTrigger className="col-span-3">
-												<SelectValue placeholder="Select a type" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="blog">Blog</SelectItem>
-												<SelectItem value="youtube">YouTube</SelectItem>
-												<SelectItem value="research">Research</SelectItem>
-												<SelectItem value="developer">Developer</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="content" className="text-right">
-                      Content
-                    </Label>
-                    <Textarea
-                      id="content"
-                      value={newFileContent}
-                      onChange={(e) => setNewFileContent(e.target.value)}
-                      className="col-span-3 min-h-[100px]"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" onClick={createNewFile}>
-                    Create
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Loading...
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Render Folders */}
-            {folders.map((folder) => (
-              <FolderCard
-                key={folder.id}
-                folder={folder}
-                onClick={handleFolderClick}
-                onDelete={deleteFolder}
-                onRename={renameFolder}
-              />
-            ))}
-
-            {/* Render Files */}
-            {files.map((file) => (
-              <FileCard
-                key={file.id}
-                file={file}
-                onDelete={deleteFile}
-                onRename={renameFile}
-                toggleFavorite={toggleFavorite}
-              />
-            ))}
-          </div>
-        )}
+        
+        <div className="w-full md:w-1/3 flex items-center space-x-2">
+          <Checkbox 
+            id="favorites" 
+            checked={showFavorites}
+            onCheckedChange={toggleFavoritesView}
+          />
+          <Label htmlFor="favorites">Show favorites only</Label>
+          
+          {activeFolder && (
+            <Button variant="ghost" onClick={navigateBack} className="ml-auto">
+              Back to All Files
+            </Button>
+          )}
+        </div>
       </div>
+      
+      <Tabs defaultValue="grid" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="grid">Grid View</TabsTrigger>
+          <TabsTrigger value="list">List View</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="grid" className="space-y-8">
+          {getFilteredFolders().length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Folders</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {getFilteredFolders().map(folder => (
+                  <FolderCard 
+                    key={folder.id} 
+                    folder={folder} 
+                    onClick={() => handleFolderClick(folder)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Files</h2>
+            {isLoading ? (
+              <div className="flex justify-center py-8">Loading files...</div>
+            ) : getFilteredFiles().length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {getFilteredFiles().map(file => (
+                  <FileCard 
+                    key={file.id} 
+                    file={file} 
+                    onDelete={deleteFile}
+                    toggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                {searchQuery ? 'No matching files found' : 'No files in this location'}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="list">
+          {/* List view implementation similar to grid view */}
+          <div className="text-center py-8 text-muted-foreground">
+            List view implementation coming soon...
+          </div>
+        </TabsContent>
+      </Tabs>
+      
+      {/* New Folder Dialog */}
+      <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="folderName">Folder Name</Label>
+              <Input 
+                id="folderName" 
+                value={newFolderName} 
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="My Folder"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createFolder}>Create Folder</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* New File Dialog */}
+      <Dialog open={newFileDialogOpen} onOpenChange={setNewFileDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Create New File</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="fileName">File Name</Label>
+              <Input 
+                id="fileName" 
+                value={newFileName} 
+                onChange={(e) => setNewFileName(e.target.value)}
+                placeholder="My File"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fileContent">Content</Label>
+              <textarea
+                id="fileContent"
+                value={newFileContent}
+                onChange={(e) => setNewFileContent(e.target.value)}
+                placeholder="Enter your content here..."
+                className="w-full min-h-[200px] p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFileDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createFile}>Create File</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
