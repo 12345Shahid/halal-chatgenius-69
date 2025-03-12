@@ -3,404 +3,353 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import MainNav from "@/components/layout/MainNav";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
+import { AlertCircle, Bookmark, Download, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Send, Copy, Download, Edit, RefreshCw, ChevronDown, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
-interface ToolMapping {
-  [key: string]: {
-    name: string;
-    icon: string;
-    placeholderPrompt: string;
-    color: string;
-    exampleInputs: string[];
-  };
-}
+import { useCredits } from "@/hooks/use-credits";
 
 const ToolInterface = () => {
   const { toolType } = useParams<{ toolType: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { credits, loading: creditsLoading, refetch: refetchCredits } = useCredits();
   
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
-  const [wordCount, setWordCount] = useState([1500]);
-  const [tone, setTone] = useState("professional");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState("");
-  const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState(false);
-  const [credits, setCredits] = useState(0);
-  const [haramError, setHaramError] = useState<{error: string, details: string, phrases: string[]} | null>(null);
+  const [wordCount, setWordCount] = useState<number>(300);
+  const [tone, setTone] = useState<string>("informative");
+  const [generating, setGenerating] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<string>("");
+  const [contentId, setContentId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [haramDetails, setHaramDetails] = useState<{
+    explanation?: string;
+    haramPhrases?: string[];
+  } | null>(null);
 
-  const toolMapping: ToolMapping = {
-    blogging: {
-      name: "Blogging Tool",
-      icon: "📝",
-      placeholderPrompt: "Write a blog post about the benefits of Halal food and its impact on health...",
-      color: "bg-blue-100 text-blue-600",
-      exampleInputs: [
-        "Write a blog post about the importance of prayer in daily life",
-        "Create an article about sustainable living from an Islamic perspective",
-        "Write a guide to Ramadan for beginners"
-      ]
-    },
-    youtube: {
-      name: "YouTube Tool",
-      icon: "🎬",
-      placeholderPrompt: "Create a script for a YouTube video explaining the basics of Islamic finance...",
-      color: "bg-red-100 text-red-600",
-      exampleInputs: [
-        "Create a YouTube script about common misconceptions about Islam",
-        "Write an engaging video script about the history of Islamic architecture",
-        "Script a Q&A video about Halal lifestyle choices"
-      ]
-    },
-    research: {
-      name: "Research Tool",
-      icon: "🔍",
-      placeholderPrompt: "Research the historical contributions of Muslim scholars to mathematics and science...",
-      color: "bg-purple-100 text-purple-600",
-      exampleInputs: [
-        "Research the evolution of Islamic calligraphy through history",
-        "Compile information about the Golden Age of Islam and its scientific achievements",
-        "Analyze the impact of Islamic banking on global finance"
-      ]
-    },
-    developer: {
-      name: "Developer Tool",
-      icon: "💻",
-      placeholderPrompt: "Generate a React component for a prayer times calculator...",
-      color: "bg-green-100 text-green-600",
-      exampleInputs: [
-        "Create a JavaScript function to calculate Zakat",
-        "Generate a React component for displaying Quranic verses",
-        "Write a MongoDB schema for a Halal food delivery app"
-      ]
-    },
-    general: {
-      name: "General Tool",
-      icon: "📄",
-      placeholderPrompt: "Create a guide on incorporating Islamic principles into modern daily life...",
-      color: "bg-orange-100 text-orange-600",
-      exampleInputs: [
-        "Write a short story with Islamic moral values",
-        "Create a daily dhikr schedule for busy professionals",
-        "Design a flyer for an Islamic community event"
-      ]
+  const toolTypeLabel = () => {
+    switch (toolType) {
+      case "blog":
+        return "Blog Post Generator";
+      case "research":
+        return "Research Content Generator";
+      case "youtube":
+        return "YouTube Script Generator";
+      case "developer":
+        return "Code Assistant";
+      default:
+        return "Content Generator";
     }
   };
 
-  const currentTool = toolMapping[toolType || "general"];
+  const toolPromptPlaceholder = () => {
+    switch (toolType) {
+      case "blog":
+        return "Enter a topic or title for your blog post...";
+      case "research":
+        return "Enter a research topic or question...";
+      case "youtube":
+        return "Enter a title or topic for your YouTube video...";
+      case "developer":
+        return "Describe what you need help with (e.g., 'Create a React form with validation')...";
+      default:
+        return "What would you like to create?";
+    }
+  };
 
-  useEffect(() => {
+  const generateContent = async () => {
+    if (!prompt.trim()) {
+      toast.error("Please enter a prompt");
+      return;
+    }
+
     if (!user) {
       navigate("/login");
       return;
     }
-    
-    // Reset state when tool type changes
-    setPrompt("");
-    setNegativePrompt("");
-    setWordCount([1500]);
-    setTone("professional");
-    setGeneratedContent("");
-    setHaramError(null);
-    
-    // Fetch user's credits
-    const fetchCredits = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("credits")
-          .select("total_credits")
-          .eq("user_id", user.id)
-          .single();
-        
-        if (error) {
-          if (error.code === "PGRST116") {
-            // No credits record exists, create one
-            const { data: newCredits, error: newCreditsError } = await supabase
-              .from("credits")
-              .insert({
-                user_id: user.id,
-                total_credits: 5, // Start with 5 credits
-                referral_credits: 0,
-                ad_credits: 0
-              })
-              .select()
-              .single();
 
-            if (newCreditsError) {
-              console.error("Error creating credits:", newCreditsError);
-            } else {
-              setCredits(newCredits.total_credits);
-            }
-          } else {
-            console.error("Error fetching credits:", error);
-          }
-        } else {
-          setCredits(data.total_credits);
-        }
-      } catch (error) {
-        console.error("Error fetching credits:", error);
-      }
-    };
-
-    fetchCredits();
-  }, [toolType, user, navigate]);
-
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      toast.error("Please enter a prompt before generating content");
-      return;
-    }
-
-    if (credits <= 0) {
+    if (!credits || credits.total_credits <= 0) {
       toast.error("You don't have enough credits to generate content");
+      setError("Not enough credits. Please get more credits to continue.");
       return;
     }
 
-    setIsGenerating(true);
-    setHaramError(null);
-    
+    setGenerating(true);
+    setError(null);
+    setHaramDetails(null);
+
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          Authorization: `Bearer ${supabase.auth.getSession()}`
         },
         body: JSON.stringify({
           prompt,
-          negativePrompt,
-          wordCount: wordCount[0],
-          tone,
+          negativePrompt: negativePrompt || undefined,
+          wordCount: wordCount || undefined,
+          tone: tone || undefined,
           toolType: toolType || "general",
-          userId: user?.id
+          userId: user.id
         })
       });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        // Update local credits state
-        setCredits(credits - 1);
-        
-        if (result.contentId) {
-          // Redirect to editor
-          navigate(`/editor/${result.contentId}`);
-        } else {
-          setGeneratedContent(result.content);
-        }
-      } else {
-        if (result.error === "Haram content detected") {
-          setHaramError({
-            error: result.error,
-            details: result.details,
-            phrases: result.haramPhrases || []
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.error === "Haram content detected") {
+          setHaramDetails({
+            explanation: data.details,
+            haramPhrases: data.haramPhrases
           });
+          setError("The content you requested contains elements that are not permissible according to Islamic principles.");
+        } else if (data.error === "Not enough credits") {
+          setError("You don't have enough credits. Please get more credits to continue.");
         } else {
-          toast.error(result.error || "Failed to generate content");
+          setError(data.error || "Failed to generate content");
         }
+        return;
       }
+
+      setGeneratedContent(data.content);
+      setContentId(data.contentId);
+      refetchCredits(); // Refresh credits after generation
     } catch (error) {
       console.error("Error generating content:", error);
-      toast.error("An error occurred while generating content");
+      setError("An error occurred. Please try again later.");
     } finally {
-      setIsGenerating(false);
+      setGenerating(false);
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedContent);
-    toast.success("Content copied to clipboard");
+  const saveContent = () => {
+    if (contentId) {
+      navigate(`/editor/${contentId}`);
+    } else if (generatedContent) {
+      // Save the content first, then navigate
+      saveAndNavigate();
+    }
+  };
+
+  const saveAndNavigate = async () => {
+    if (!user || !generatedContent) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("content")
+        .insert({
+          user_id: user.id,
+          title: prompt.substring(0, 50) + (prompt.length > 50 ? "..." : ""),
+          content: generatedContent,
+          type: toolType || "general"
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error saving content:", error);
+        toast.error("Failed to save content");
+        return;
+      }
+
+      navigate(`/editor/${data.id}`);
+    } catch (error) {
+      console.error("Error in saveAndNavigate:", error);
+      toast.error("Failed to save content");
+    }
   };
 
   const downloadContent = () => {
+    if (!generatedContent) return;
+
     const element = document.createElement("a");
-    const file = new Blob([generatedContent], { type: 'text/plain' });
+    const file = new Blob([generatedContent], { type: "text/plain" });
     element.href = URL.createObjectURL(file);
-    element.download = `${toolType}-content-${Date.now()}.md`;
+    element.download = `${prompt.substring(0, 30)}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-    toast.success("Content downloaded");
   };
-
-  const applyExampleInput = (example: string) => {
-    setPrompt(example);
-  };
-
-  const toneOptions = [
-    "professional", "friendly", "casual", "formal", 
-    "inspirational", "educational", "conversational"
-  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <MainNav />
-      
+
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center mb-8">
-            <div className={`w-12 h-12 rounded-lg ${currentTool.color} flex items-center justify-center mr-4`}>
-              <span className="text-2xl">{currentTool.icon}</span>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-semibold">{toolTypeLabel()}</h1>
+          <div className="flex items-center">
+            <div className="text-sm mr-4">
+              Credits: <span className="font-semibold">{creditsLoading ? "..." : credits?.total_credits || 0}</span>
             </div>
-            <div>
-              <h1 className="text-3xl font-semibold">{currentTool.name}</h1>
-              <p className="text-muted-foreground">
-                Generate Halal content that aligns with Islamic principles
-              </p>
-            </div>
+            <Button
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+            >
+              Dashboard
+            </Button>
           </div>
-          
-          <div className="mb-4 flex justify-end">
-            <div className="flex items-center text-sm">
-              <Coins className="h-4 w-4 mr-1 text-primary" />
-              <span>Available Credits: <strong>{credits}</strong></span>
-            </div>
-          </div>
-          
-          {haramError && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Haram Content Detected</AlertTitle>
-              <AlertDescription className="space-y-2">
-                <p>{haramError.details}</p>
-                {haramError.phrases && haramError.phrases.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-semibold">Problematic phrases:</p>
-                    <ul className="list-disc pl-5 mt-1">
-                      {haramError.phrases.map((phrase, index) => (
-                        <li key={index} className="mt-1">"{phrase}"</li>
-                      ))}
-                    </ul>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="prompt">What would you like to create?</Label>
+                    <Textarea
+                      id="prompt"
+                      placeholder={toolPromptPlaceholder()}
+                      className="mt-1 h-32"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                    />
                   </div>
-                )}
-                <p className="mt-3">Please revise your prompt to align with Islamic principles.</p>
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          <Card className="mb-8">
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    What would you like to create?
-                  </label>
-                  <Textarea
-                    placeholder={currentTool.placeholderPrompt}
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="min-h-[120px]"
-                  />
-                </div>
-                
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-medium">Advanced Options</label>
-                    <button 
-                      onClick={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <ChevronDown className={`h-5 w-5 transition-transform ${isAdvancedOptionsOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
-                  
-                  {isAdvancedOptionsOpen && (
-                    <div className="space-y-4 pt-2 border-t mt-2">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">
-                          What should be avoided? (Negative prompt)
-                        </label>
-                        <Textarea
-                          placeholder="Specify what you don't want in the generated content..."
-                          value={negativePrompt}
-                          onChange={(e) => setNegativePrompt(e.target.value)}
-                          className="min-h-[80px]"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-3">
-                          Word Count: {wordCount[0]}
-                        </label>
-                        <Slider
-                          defaultValue={[1500]}
-                          min={300}
-                          max={3000}
-                          step={100}
-                          value={wordCount}
-                          onValueChange={setWordCount}
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                          <span>300</span>
-                          <span>1500</span>
-                          <span>3000</span>
+
+                  <Tabs defaultValue="basic" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="basic">Basic</TabsTrigger>
+                      <TabsTrigger value="advanced">Advanced</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="basic">
+                      <div className="space-y-4 pt-4">
+                        <div>
+                          <Label htmlFor="tone">Tone</Label>
+                          <Select
+                            value={tone}
+                            onValueChange={setTone}
+                          >
+                            <SelectTrigger id="tone">
+                              <SelectValue placeholder="Select tone" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="informative">Informative</SelectItem>
+                              <SelectItem value="conversational">Conversational</SelectItem>
+                              <SelectItem value="formal">Formal</SelectItem>
+                              <SelectItem value="persuasive">Persuasive</SelectItem>
+                              <SelectItem value="entertaining">Entertaining</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="wordCount">Word Count (approximate)</Label>
+                          <Input
+                            id="wordCount"
+                            type="number"
+                            min="50"
+                            max="2000"
+                            value={wordCount}
+                            onChange={(e) => setWordCount(parseInt(e.target.value) || 300)}
+                          />
                         </div>
                       </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-1">
-                          Tone
-                        </label>
-                        <select
-                          value={tone}
-                          onChange={(e) => setTone(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                          {toneOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option.charAt(0).toUpperCase() + option.slice(1)}
-                            </option>
-                          ))}
-                        </select>
+                    </TabsContent>
+                    <TabsContent value="advanced">
+                      <div className="space-y-4 pt-4">
+                        <div>
+                          <Label htmlFor="negativePrompt">Avoid Including (optional)</Label>
+                          <Textarea
+                            id="negativePrompt"
+                            placeholder="Topics, phrases, or styles to avoid..."
+                            className="mt-1"
+                            value={negativePrompt}
+                            onChange={(e) => setNegativePrompt(e.target.value)}
+                          />
+                        </div>
                       </div>
+                    </TabsContent>
+                  </Tabs>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                      
+                      {haramDetails && haramDetails.haramPhrases && haramDetails.haramPhrases.length > 0 && (
+                        <div className="mt-2">
+                          <p className="font-semibold">Detected phrases:</p>
+                          <ul className="list-disc pl-5 mt-1">
+                            {haramDetails.haramPhrases.map((phrase, idx) => (
+                              <li key={idx} className="text-sm">{phrase}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </Alert>
+                  )}
+
+                  <div className="pt-2">
+                    <Button
+                      className="w-full"
+                      onClick={generateContent}
+                      disabled={generating || !prompt.trim()}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {generating ? "Generating..." : "Generate Content"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium">Generated Content</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={downloadContent}
+                      disabled={!generatedContent}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={saveContent}
+                      disabled={!generatedContent}
+                    >
+                      <Bookmark className="mr-2 h-4 w-4" />
+                      Save
+                    </Button>
+                  </div>
+                </div>
+                <div className="relative min-h-[400px] border rounded-lg p-4 bg-muted/20">
+                  {generating ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
+                        <p className="mt-2 text-muted-foreground">Generating content...</p>
+                      </div>
+                    </div>
+                  ) : generatedContent ? (
+                    <div className="whitespace-pre-wrap">{generatedContent}</div>
+                  ) : (
+                    <div className="text-center text-muted-foreground h-full flex items-center justify-center">
+                      <p>Generated content will appear here</p>
                     </div>
                   )}
                 </div>
-              </div>
-              
-              <div className="mt-6">
-                <Button
-                  onClick={handleGenerate}
-                  className="w-full"
-                  disabled={isGenerating || credits <= 0}
-                  isLoading={isGenerating}
-                >
-                  {isGenerating ? (
-                    "Generating..."
-                  ) : credits <= 0 ? (
-                    "Not Enough Credits"
-                  ) : (
-                    <>
-                      <Send className="mr-2 h-4 w-4" />
-                      Generate Content ({credits} credits available)
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <div className="mb-8">
-            <h2 className="text-lg font-medium mb-3">Try these examples:</h2>
-            <div className="flex flex-wrap gap-2">
-              {currentTool.exampleInputs.map((example, index) => (
-                <button
-                  key={index}
-                  onClick={() => applyExampleInput(example)}
-                  className="px-3 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm hover:bg-secondary/80 transition-colors"
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
@@ -409,25 +358,3 @@ const ToolInterface = () => {
 };
 
 export default ToolInterface;
-
-const Coins = (props: any) => {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="8" cy="8" r="6" />
-      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
-      <path d="M7 6h1v4" />
-      <path d="m16.71 13.88.7.71-2.82 2.82" />
-    </svg>
-  );
-};

@@ -1,66 +1,65 @@
 
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client";
-import { Download, ArrowLeft, Copy } from "lucide-react";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import MainNav from '@/components/layout/MainNav';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Download, FileText, User, Calendar } from 'lucide-react';
+import { toast } from 'sonner';
 
 const SharedFile = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
-  const navigate = useNavigate();
-  
-  const [file, setFile] = useState<any>(null);
+  const [fileData, setFileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSharedFile = async () => {
       setIsLoading(true);
+      setError(null);
+
       try {
-        // Fetch the shared file data
-        const { data: sharedData, error: sharedError } = await supabase
-          .from("shared_files")
-          .select("file_id, shared_by")
-          .eq("share_token", shareToken)
+        // Get the shared file data
+        const { data: sharedFileData, error: sharedFileError } = await supabase
+          .from('shared_files')
+          .select('file_id, shared_by')
+          .eq('share_token', shareToken)
           .single();
 
-        if (sharedError) {
-          setError("This shared file link is invalid or has expired");
+        if (sharedFileError) {
+          setError('This shared link is invalid or has expired.');
           setIsLoading(false);
           return;
         }
 
-        // Fetch the actual file data
+        // Get the actual file content
         const { data: fileData, error: fileError } = await supabase
-          .from("files")
-          .select("*")
-          .eq("id", sharedData.file_id)
+          .from('files')
+          .select('*')
+          .eq('id', sharedFileData.file_id)
           .single();
 
         if (fileError) {
-          setError("Unable to load the shared file");
+          setError('The shared file could not be found.');
           setIsLoading(false);
           return;
         }
 
-        // Fetch sharer's details
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("display_name, email")
-          .eq("id", sharedData.shared_by)
+        // Get sharer's name (optional)
+        const { data: userData } = await supabase
+          .from('users')
+          .select('email, display_name')
+          .eq('id', sharedFileData.shared_by)
           .single();
 
-        if (!userError && userData) {
-          fileData.shared_by_name = userData.display_name || userData.email;
-        }
-
-        setFile(fileData);
+        setFileData({
+          ...fileData,
+          shared_by_name: userData?.display_name || userData?.email || 'Anonymous'
+        });
       } catch (error) {
-        console.error("Error fetching shared file:", error);
-        setError("An error occurred while loading the shared file");
+        console.error('Error fetching shared file:', error);
+        setError('An error occurred while loading the shared file.');
       } finally {
         setIsLoading(false);
       }
@@ -68,146 +67,74 @@ const SharedFile = () => {
 
     if (shareToken) {
       fetchSharedFile();
-    } else {
-      setError("Invalid share link");
-      setIsLoading(false);
     }
   }, [shareToken]);
 
-  const downloadFile = () => {
-    if (!file) return;
+  const handleDownload = () => {
+    if (!fileData) return;
     
-    const blob = new Blob([file.content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${file.name}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const element = document.createElement('a');
+    const fileBlob = new Blob([fileData.content], { type: 'text/plain' });
+    element.href = URL.createObjectURL(fileBlob);
+    element.download = `${fileData.name}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success('File downloaded successfully');
   };
-
-  const copyContent = () => {
-    if (!file) return;
-    
-    navigator.clipboard.writeText(file.content);
-    toast.success("Content copied to clipboard");
-  };
-
-  // Simple markdown rendering (very basic)
-  const renderMarkdown = (content: string) => {
-    if (!content) return "";
-    
-    // This is a very basic implementation - in a real app you'd use a proper markdown library
-    const html = content
-      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br />');
-    
-    return html;
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <header className="bg-background border-b py-4">
-          <div className="container mx-auto px-4">
-            <Button variant="ghost" onClick={() => navigate("/")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-          </div>
-        </header>
-        
-        <main className="flex-grow container mx-auto px-4 py-8">
-          <Card className="max-w-4xl mx-auto">
-            <CardContent className="p-6">
-              <Skeleton className="h-8 w-1/3 mb-4" />
-              <Skeleton className="h-4 w-1/4 mb-8" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-              </div>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <header className="bg-background border-b py-4">
-          <div className="container mx-auto px-4">
-            <Button variant="ghost" onClick={() => navigate("/")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-          </div>
-        </header>
-        
-        <main className="flex-grow container mx-auto px-4 py-8">
-          <Card className="max-w-4xl mx-auto">
-            <CardContent className="p-6 text-center">
-              <h1 className="text-xl font-semibold mb-4">Error</h1>
-              <p className="text-muted-foreground mb-4">{error}</p>
-              <Button onClick={() => navigate("/")}>
-                Return to Home
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="bg-background border-b py-4">
-        <div className="container mx-auto px-4">
-          <Button variant="ghost" onClick={() => navigate("/")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-        </div>
-      </header>
+      <MainNav />
       
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-2xl font-semibold">{file.name}</h1>
-              {file.shared_by_name && (
-                <p className="text-sm text-muted-foreground">
-                  Shared by {file.shared_by_name}
-                </p>
-              )}
-            </div>
-            
-            <div className="flex space-x-2">
-              <Button variant="outline" onClick={copyContent}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy
-              </Button>
-              <Button onClick={downloadFile}>
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
-            </div>
+        <h1 className="text-3xl font-semibold mb-6">Shared File</h1>
+        
+        {isLoading ? (
+          <div className="flex justify-center p-8">
+            <p>Loading shared file...</p>
           </div>
-          
-          <Card>
-            <CardContent className="p-6 prose max-w-none">
-              <div dangerouslySetInnerHTML={{ __html: renderMarkdown(file.content) }} />
+        ) : error ? (
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <p className="text-red-500">{error}</p>
+              </div>
             </CardContent>
           </Card>
-        </div>
+        ) : fileData ? (
+          <div className="max-w-3xl mx-auto">
+            <Card className="mb-6">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-2xl flex items-center">
+                    <FileText className="mr-2 h-5 w-5 text-primary" />
+                    {fileData.name}
+                  </CardTitle>
+                  <Button onClick={handleDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    <span>Shared by: {fileData.shared_by_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span>Created: {new Date(fileData.created_at).toLocaleString()}</span>
+                  </div>
+                  <div className="border-t mt-4 pt-4">
+                    <div className="whitespace-pre-wrap">{fileData.content}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
       </main>
     </div>
   );

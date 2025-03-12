@@ -3,7 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
-const HUGGING_FACE_API_KEY = Deno.env.get("HUGGING_FACE_API_KEY") || "";
+const HUGGING_FACE_API_KEY = Deno.env.get("HUGGING_FACE_API_KEY") || "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";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -38,9 +38,30 @@ serve(async (req) => {
       .from("credits")
       .select("total_credits")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
-    if (creditsError || !credits || credits.total_credits <= 0) {
+    if (creditsError) {
+      console.error("Error checking credits:", creditsError);
+      
+      // If credits table doesn't exist for the user, create it with initial credits
+      if (creditsError.code === "PGRST116") {
+        await supabase
+          .from("credits")
+          .insert({
+            user_id: userId,
+            total_credits: 5, // Start with 5 credits
+            referral_credits: 0,
+            ad_credits: 0
+          });
+          
+        // Continue with content generation since we just added credits
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Error checking credits" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else if (!credits || credits.total_credits <= 0) {
       return new Response(
         JSON.stringify({ error: "Not enough credits" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -68,14 +89,16 @@ serve(async (req) => {
       tone
     );
 
-    // Deduct credits
-    await supabase
-      .from("credits")
-      .update({ 
-        total_credits: credits.total_credits - 1,
-        updated_at: new Date().toISOString()
-      })
-      .eq("user_id", userId);
+    // Deduct credits if the user has them
+    if (credits) {
+      await supabase
+        .from("credits")
+        .update({ 
+          total_credits: credits.total_credits - 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", userId);
+    }
 
     // Save the generated content in the content table
     const { data: savedContent, error: contentError } = await supabase

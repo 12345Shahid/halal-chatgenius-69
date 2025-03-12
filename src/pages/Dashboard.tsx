@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 import MainNav from "@/components/layout/MainNav";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Coins, Share2, PlayCircle, History, Copy, Folder } from "lucide-react";
 import { toast } from "sonner";
+import { useCredits } from "@/hooks/use-credits";
 
 interface Activity {
   id: string;
@@ -18,20 +18,10 @@ interface Activity {
   created_at: string;
 }
 
-interface Credits {
-  total_credits: number;
-  referral_credits: number;
-  ad_credits: number;
-}
-
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [credits, setCredits] = useState<Credits>({
-    total_credits: 0,
-    referral_credits: 0,
-    ad_credits: 0
-  });
+  const { credits, loading: creditsLoading } = useCredits();
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [referralLink, setReferralLink] = useState("");
@@ -45,43 +35,6 @@ const Dashboard = () => {
     const loadDashboardData = async () => {
       setIsLoading(true);
       try {
-        // Fetch credits
-        const { data: creditsData, error: creditsError } = await supabase
-          .from("credits")
-          .select("total_credits, referral_credits, ad_credits")
-          .eq("user_id", user.id)
-          .single();
-
-        if (creditsError) {
-          // If no credits record exists, create one
-          if (creditsError.code === "PGRST116") {
-            const { data: newCredits, error: newCreditsError } = await supabase
-              .from("credits")
-              .insert({
-                user_id: user.id,
-                total_credits: 5, // Start with 5 credits
-                referral_credits: 0,
-                ad_credits: 0
-              })
-              .select()
-              .single();
-
-            if (newCreditsError) {
-              console.error("Error creating credits:", newCreditsError);
-            } else {
-              setCredits({
-                total_credits: newCredits.total_credits,
-                referral_credits: newCredits.referral_credits,
-                ad_credits: newCredits.ad_credits
-              });
-            }
-          } else {
-            console.error("Error fetching credits:", creditsError);
-          }
-        } else {
-          setCredits(creditsData);
-        }
-
         // Fetch recent activity
         const { data: activityData, error: activityError } = await supabase
           .from("content")
@@ -160,7 +113,7 @@ const Dashboard = () => {
               <CardDescription>Available for content generation</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{credits.total_credits}</p>
+              <p className="text-3xl font-bold">{creditsLoading ? "..." : credits?.total_credits || 0}</p>
             </CardContent>
           </Card>
 
@@ -174,7 +127,7 @@ const Dashboard = () => {
               <CardDescription>Earned from referrals</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{credits.referral_credits}</p>
+              <p className="text-3xl font-bold">{creditsLoading ? "..." : credits?.referral_credits || 0}</p>
             </CardContent>
           </Card>
 
@@ -188,7 +141,7 @@ const Dashboard = () => {
               <CardDescription>Earned from watching ads</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{credits.ad_credits}</p>
+              <p className="text-3xl font-bold">{creditsLoading ? "..." : credits?.ad_credits || 0}</p>
             </CardContent>
           </Card>
         </div>

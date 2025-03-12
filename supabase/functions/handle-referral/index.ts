@@ -87,18 +87,52 @@ serve(async (req) => {
       );
     }
 
-    // Add credits to the referrer
-    const { error: creditsError } = await supabase
+    // Check if credits entry exists for the referrer
+    const { data: referrerCredits, error: creditsCheckError } = await supabase
       .from("credits")
-      .update({
-        referral_credits: supabase.rpc("increment", { x: 1 }),
-        total_credits: supabase.rpc("increment", { x: 1 }),
-        updated_at: new Date().toISOString()
-      })
-      .eq("user_id", referrerId);
+      .select("id")
+      .eq("user_id", referrerId)
+      .maybeSingle();
 
-    if (creditsError) {
-      console.error("Error updating credits:", creditsError);
+    // If no credits entry exists, create one
+    if (!referrerCredits) {
+      await supabase
+        .from("credits")
+        .insert({
+          user_id: referrerId,
+          total_credits: 1,
+          referral_credits: 1,
+          ad_credits: 0
+        });
+    } else {
+      // Add credits to the referrer
+      await supabase
+        .from("credits")
+        .update({
+          referral_credits: supabase.rpc("increment", { x: 1 }),
+          total_credits: supabase.rpc("increment", { x: 1 }),
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", referrerId);
+    }
+
+    // Check if credits entry exists for the referred user
+    const { data: referredCredits } = await supabase
+      .from("credits")
+      .select("id")
+      .eq("user_id", referredId)
+      .maybeSingle();
+
+    // If no credits entry exists, create one with initial credits
+    if (!referredCredits) {
+      await supabase
+        .from("credits")
+        .insert({
+          user_id: referredId,
+          total_credits: 3, // Give 3 initial credits to referred user
+          referral_credits: 0,
+          ad_credits: 0
+        });
     }
 
     return new Response(
