@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
@@ -12,17 +13,24 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log("[generate-content] Request received:", req.method);
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    console.log("[generate-content] Handling OPTIONS request");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     // Get the request body
-    const { prompt, negativePrompt, wordCount, tone, toolType, userId } = await req.json();
+    const requestBody = await req.json();
+    console.log("[generate-content] Request body received:", JSON.stringify(requestBody));
+    
+    const { prompt, negativePrompt, wordCount, tone, toolType, userId } = requestBody;
     
     // Validate essential parameters
     if (!prompt || !userId) {
+      console.log("[generate-content] Missing required parameters:", { prompt, userId });
       return new Response(
         JSON.stringify({ error: "Missing required parameters" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -30,9 +38,11 @@ serve(async (req) => {
     }
 
     // Initialize Supabase client
+    console.log("[generate-content] Initializing Supabase client with URL:", SUPABASE_URL);
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Check if user has enough credits
+    console.log("[generate-content] Checking credits for user:", userId);
     const { data: credits, error: creditsError } = await supabase
       .from("credits")
       .select("total_credits")
@@ -40,10 +50,11 @@ serve(async (req) => {
       .maybeSingle();
 
     if (creditsError) {
-      console.error("Error checking credits:", creditsError);
+      console.error("[generate-content] Error checking credits:", creditsError);
       
       // If credits table doesn't exist for the user, create it with initial credits
       if (creditsError.code === "PGRST116") {
+        console.log("[generate-content] Creating initial credits for user:", userId);
         await supabase
           .from("credits")
           .insert({
@@ -55,12 +66,14 @@ serve(async (req) => {
           
         // Continue with content generation since we just added credits
       } else {
+        console.error("[generate-content] Unhandled error checking credits:", creditsError);
         return new Response(
           JSON.stringify({ error: "Error checking credits" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     } else if (!credits || credits.total_credits <= 0) {
+      console.log("[generate-content] User has insufficient credits:", credits?.total_credits);
       return new Response(
         JSON.stringify({ error: "Not enough credits" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -68,9 +81,11 @@ serve(async (req) => {
     }
 
     // Check if the prompt contains haram content
+    console.log("[generate-content] Checking for haram content in prompt");
     const isHaramContent = await checkForHaramContent(prompt);
     if (isHaramContent.isHaram) {
       // Generate a halal alternative suggestion
+      console.log("[generate-content] Haram content detected, generating alternative");
       const halalSuggestion = await generateHalalAlternative(prompt, isHaramContent.haramPhrases);
       
       return new Response(
@@ -85,9 +100,11 @@ serve(async (req) => {
     }
 
     // Analyze if the prompt would benefit from visualizations
+    console.log("[generate-content] Analyzing if visualization would be beneficial");
     const shouldVisualize = await shouldUseVisualization(prompt);
     
     // Generate content using Hugging Face API
+    console.log("[generate-content] Generating content with HuggingFace API");
     const generatedContentResponse = await generateContentWithHuggingFace(
       prompt, 
       negativePrompt, 
@@ -101,6 +118,7 @@ serve(async (req) => {
     
     // If visualization is recommended, extract and prepare visualization data
     if (shouldVisualize.shouldVisualize && generatedContentResponse.visualizationData) {
+      console.log("[generate-content] Preparing visualization data");
       visualizationData = {
         type: shouldVisualize.visualizationType,
         data: generatedContentResponse.visualizationData,
@@ -110,6 +128,7 @@ serve(async (req) => {
 
     // Deduct credits if the user has them
     if (credits) {
+      console.log("[generate-content] Deducting 1 credit from user:", userId);
       await supabase
         .from("credits")
         .update({ 
@@ -120,6 +139,7 @@ serve(async (req) => {
     }
 
     // Save the generated content in the content table
+    console.log("[generate-content] Saving generated content to database");
     const { data: savedContent, error: contentError } = await supabase
       .from("content")
       .insert({
@@ -133,9 +153,10 @@ serve(async (req) => {
       .single();
 
     if (contentError) {
-      console.error("Error saving content:", contentError);
+      console.error("[generate-content] Error saving content:", contentError);
     }
 
+    console.log("[generate-content] Successfully generated content, returning response");
     return new Response(
       JSON.stringify({ 
         content: generatedContent,
@@ -145,7 +166,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error in generate-content function:", error);
+    console.error("[generate-content] Error in generate-content function:", error);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -159,6 +180,7 @@ async function shouldUseVisualization(prompt: string): Promise<{
   title?: string;
 }> {
   try {
+    console.log("[visualization-analysis] Analyzing prompt for visualization potential:", prompt);
     const response = await fetch(
       "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
       {
@@ -191,11 +213,18 @@ Explanation: [Brief explanation of your decision]`,
     const result = await response.json();
     
     if (result.error) {
-      console.error("Error in visualization analysis:", result.error);
+      if (result.error.includes("rate limit") || result.error.includes("quota")) {
+        console.warn("[visualization-analysis] HuggingFace API rate limit reached:", result.error);
+        // Return a safe default in case of rate limit
+        return { shouldVisualize: false };
+      }
+      
+      console.error("[visualization-analysis] Error in visualization analysis:", result.error);
       return { shouldVisualize: false };
     }
     
     const analysisText = result[0]?.generated_text || "";
+    console.log("[visualization-analysis] Analysis result:", analysisText);
     
     // Parse the AI response to extract information
     const shouldVisualize = /Visualization:\s*Yes/i.test(analysisText);
@@ -212,19 +241,21 @@ Explanation: [Brief explanation of your decision]`,
     const titleMatch = analysisText.match(/Title:\s*(.+?)(?=\n|$)/i);
     const title = titleMatch ? titleMatch[1].trim() : undefined;
     
+    console.log("[visualization-analysis] Visualization recommendation:", { shouldVisualize, visualizationType, title });
     return {
       shouldVisualize,
       visualizationType,
       title
     };
   } catch (error) {
-    console.error("Error in visualization analysis:", error);
+    console.error("[visualization-analysis] Error in visualization analysis:", error);
     return { shouldVisualize: false };
   }
 }
 
 async function checkForHaramContent(prompt: string): Promise<{isHaram: boolean, explanation?: string, haramPhrases?: string[], categories?: string[]}> {
   try {
+    console.log("[haram-check] Checking prompt for haram content:", prompt);
     // First, use a more sophisticated AI model to analyze the content
     const analysisResponse = await fetch(
       "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
@@ -258,13 +289,19 @@ Problematic phrases: [List of specific phrases that are problematic]`,
     const analysisResult = await analysisResponse.json();
     
     if (analysisResult.error) {
-      console.error("Error in AI analysis:", analysisResult.error);
+      if (analysisResult.error.includes("rate limit") || analysisResult.error.includes("quota")) {
+        console.warn("[haram-check] HuggingFace API rate limit reached:", analysisResult.error);
+        // Gracefully handle rate limit by returning a default value
+        return { isHaram: false };
+      }
       
+      console.error("[haram-check] Error in AI analysis:", analysisResult.error);
       // Fall back to simple classification as backup
       return fallbackHaramCheck(prompt);
     }
     
     const analysisText = analysisResult[0]?.generated_text || "";
+    console.log("[haram-check] Analysis result:", analysisText);
     
     // Parse the AI response to extract information
     const isHaram = /Haram:\s*Yes/i.test(analysisText);
@@ -289,6 +326,7 @@ Problematic phrases: [List of specific phrases that are problematic]`,
       ? categoriesMatch[1].split(/\n|,/).map(category => category.trim()).filter(Boolean)
       : [];
     
+    console.log("[haram-check] Haram content detected:", { isHaram, explanation, haramPhrases, categories });
     return {
       isHaram,
       explanation,
@@ -296,7 +334,7 @@ Problematic phrases: [List of specific phrases that are problematic]`,
       categories
     };
   } catch (error) {
-    console.error("Error checking for haram content:", error);
+    console.error("[haram-check] Error checking for haram content:", error);
     // Fall back to simpler classification method
     return fallbackHaramCheck(prompt);
   }
@@ -305,6 +343,7 @@ Problematic phrases: [List of specific phrases that are problematic]`,
 // Fallback to the original classification method if the AI analysis fails
 async function fallbackHaramCheck(prompt: string): Promise<{isHaram: boolean, explanation?: string, haramPhrases?: string[]}> {
   try {
+    console.log("[fallback-haram-check] Using fallback method for haram check");
     const response = await fetch(
       "https://api-inference.huggingface.co/models/facebook/bart-large-mnli",
       {
@@ -331,6 +370,17 @@ async function fallbackHaramCheck(prompt: string): Promise<{isHaram: boolean, ex
 
     const result = await response.json();
     
+    if (result.error) {
+      if (result.error.includes("rate limit") || result.error.includes("quota")) {
+        console.warn("[fallback-haram-check] HuggingFace API rate limit reached:", result.error);
+        // For rate limit issues, let's not block content
+        return { isHaram: false };
+      }
+      console.error("[fallback-haram-check] Error in fallback check:", result.error);
+      // If there's another type of API error, we'll proceed without blocking
+      return { isHaram: false };
+    }
+    
     // Check if any haram categories have high scores
     const haramLabels = result.labels.filter((label: string) => 
       label !== "halal content" && 
@@ -338,16 +388,19 @@ async function fallbackHaramCheck(prompt: string): Promise<{isHaram: boolean, ex
     );
     
     if (haramLabels.length > 0) {
+      const explanation = `The content appears to contain references to ${haramLabels.join(", ")}, which is not permissible according to Islamic principles.`;
+      const haramPhrases = identifyPotentialHaramPhrases(prompt, haramLabels);
+      console.log("[fallback-haram-check] Haram content detected:", { haramLabels, haramPhrases });
       return {
         isHaram: true,
-        explanation: `The content appears to contain references to ${haramLabels.join(", ")}, which is not permissible according to Islamic principles.`,
-        haramPhrases: identifyPotentialHaramPhrases(prompt, haramLabels)
+        explanation,
+        haramPhrases
       };
     }
     
     return { isHaram: false };
   } catch (error) {
-    console.error("Error in fallback haram check:", error);
+    console.error("[fallback-haram-check] Error in fallback haram check:", error);
     // In case of error, let's proceed but log the issue
     return { isHaram: false };
   }
@@ -384,6 +437,7 @@ function identifyPotentialHaramPhrases(text: string, categories: string[]): stri
 
 async function generateHalalAlternative(originalPrompt: string, haramPhrases: string[] = []): Promise<string> {
   try {
+    console.log("[halal-alternative] Generating halal alternative for prompt with phrases:", haramPhrases);
     const response = await fetch(
       "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
       {
@@ -412,9 +466,21 @@ Provide ONLY the rewritten prompt without any explanation or introduction.`,
     );
 
     const result = await response.json();
-    return result[0]?.generated_text || "I'm unable to suggest an alternative. Please modify your prompt to avoid haram content.";
+    
+    if (result.error) {
+      if (result.error.includes("rate limit") || result.error.includes("quota")) {
+        console.warn("[halal-alternative] HuggingFace API rate limit reached:", result.error);
+        return "I'm unable to suggest an alternative. Please try again in a few minutes when our services have capacity.";
+      }
+      console.error("[halal-alternative] Error generating alternative:", result.error);
+      return "I'm unable to suggest an alternative. Please modify your prompt to avoid haram content.";
+    }
+    
+    const suggestion = result[0]?.generated_text || "I'm unable to suggest an alternative. Please modify your prompt to avoid haram content.";
+    console.log("[halal-alternative] Generated alternative:", suggestion);
+    return suggestion;
   } catch (error) {
-    console.error("Error generating halal alternative:", error);
+    console.error("[halal-alternative] Error generating halal alternative:", error);
     return "I'm unable to suggest an alternative at this time. Please try modifying your prompt to avoid haram content.";
   }
 }
@@ -432,6 +498,8 @@ async function generateContentWithHuggingFace(
   includeVisualization: boolean = false
 ): Promise<ContentGenerationResult> {
   try {
+    console.log("[content-generation] Generating content with parameters:", { prompt, negativePrompt, wordCount, tone, includeVisualization });
+    
     // Construct a more detailed prompt
     let enhancedPrompt = prompt;
     
@@ -467,6 +535,8 @@ Example for a table:
       enhancedPrompt = `Generate content that is halal (permissible according to Islamic principles) about the following: ${enhancedPrompt}`;
     }
 
+    console.log("[content-generation] Enhanced prompt:", enhancedPrompt);
+
     const response = await fetch(
       "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
       {
@@ -490,11 +560,19 @@ Example for a table:
     const result = await response.json();
     
     if (result.error) {
-      console.error("Hugging Face API error:", result.error);
+      console.error("[content-generation] Hugging Face API error:", result.error);
+      
+      if (result.error.includes("rate limit") || result.error.includes("quota")) {
+        return { 
+          text: "We're currently experiencing high traffic on our AI services. Please try again in a few minutes. We're working to improve our service capacity. Thank you for your patience." 
+        };
+      }
+      
       return { text: "Error generating content. Please try again later." };
     }
     
     const generatedText = result[0]?.generated_text || "No content generated";
+    console.log("[content-generation] Content generated successfully, length:", generatedText.length);
     
     // Check if the response contains visualization data
     const visualizationDataMatch = generatedText.match(/===VISUALIZATION_DATA===\s*(\{.*\}|\[.*\])/s);
@@ -502,6 +580,7 @@ Example for a table:
     if (visualizationDataMatch && visualizationDataMatch[1]) {
       try {
         const jsonData = JSON.parse(visualizationDataMatch[1].trim());
+        console.log("[content-generation] Visualization data extracted:", jsonData);
         
         // Return both the text (with visualization data marker removed) and the parsed data
         return { 
@@ -509,14 +588,14 @@ Example for a table:
           visualizationData: jsonData
         };
       } catch (error) {
-        console.error("Error parsing visualization data:", error);
+        console.error("[content-generation] Error parsing visualization data:", error);
         return { text: generatedText };
       }
     }
     
     return { text: generatedText };
   } catch (error) {
-    console.error("Error generating content with Hugging Face:", error);
+    console.error("[content-generation] Error generating content with Hugging Face:", error);
     return { text: "Error generating content. Please try again later." };
   }
 }
