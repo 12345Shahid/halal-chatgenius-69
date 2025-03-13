@@ -1,122 +1,100 @@
 
-import { ArrowRight } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
-const Hero = () => {
+export default function Hero() {
+  const [prompt, setPrompt] = useState('');
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleChatSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/login');
+    
+    if (!prompt.trim()) {
+      toast.error('Please enter a question or prompt');
+      return;
+    }
+    
+    if (user) {
+      // If logged in, redirect to tools/general
+      navigate(`/tools/general?prompt=${encodeURIComponent(prompt)}`);
+    } else {
+      // If not logged in, redirect to login
+      toast.info('Please login to chat with HalalChat AI');
+      navigate('/login', { state: { redirectTo: '/tools/general', prompt } });
+    }
   };
 
   return (
-    <section className="pt-32 pb-16 md:pb-24 overflow-hidden">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-col items-center text-center">
-          <div 
-            className="inline-block px-3 py-1 mb-6 rounded-full bg-primary/10 text-primary text-xs font-medium"
-            style={{ backdropFilter: 'blur(10px)' }}
-          >
-            <span className="animate-pulse-subtle">🚀 The First Free, Unlimited Halal AI Chat Assistant</span>
-          </div>
-          
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold leading-tight md:leading-tight text-balance max-w-3xl mb-6 animate-fade-in">
-            Chat with the world's best <span className="text-primary">Halal AI</span> model
+    <section className="relative overflow-hidden py-20 md:py-32 bg-background">
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-background/0 pointer-events-none" aria-hidden="true"></div>
+
+      <div className="container relative">
+        <div className="max-w-4xl mx-auto text-center pb-12 md:pb-16">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
+            The First Free, Unlimited Halal AI Chat Assistant
           </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-2xl mb-8 animate-fade-in animation-delay-200">
-            An ethical AI assistant that respects Islamic principles, offers unlimited free access, 
-            and helps you create, save, and share content aligned with your values.
+          <p className="text-xl md:text-2xl text-muted-foreground mb-10">
+            🚀 Halal AI Chat is a free, unlimited AI assistant that lets you chat with the world's best AI model
           </p>
-          
-          <div className="flex flex-wrap justify-center gap-4 mb-12 animate-fade-in animation-delay-400">
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/signup')}
-              className="gap-2 text-base"
-            >
-              Start Chatting Free
-              <ArrowRight size={18} />
-            </Button>
-            <Button 
-              variant="outline" 
+
+          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto mb-12">
+            <div className="relative">
+              <input
+                type="text"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Ask anything..."
+                className="w-full h-14 px-6 py-4 rounded-full border border-border bg-background shadow-sm focus:outline-none focus:ring-2 focus:ring-primary pr-16"
+              />
+              <button
+                type="submit"
+                className="absolute right-2 top-2 h-10 w-10 flex items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <ArrowRight size={20} />
+              </button>
+            </div>
+          </form>
+
+          <div className="flex flex-col md:flex-row justify-center gap-6 mb-12">
+            <Button
               size="lg"
+              className="h-14 px-8 rounded-full"
+              onClick={() => navigate(user ? '/tools' : '/login')}
+            >
+              <Sparkles className="mr-2 h-5 w-5" />
+              Start Creating
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-14 px-8 rounded-full"
               onClick={() => navigate('/about')}
-              className="text-base" 
             >
               Learn More
             </Button>
           </div>
-          
-          <div className="relative w-full max-w-4xl mx-auto animate-fade-in animation-delay-600">
-            <div className="aspect-video rounded-xl overflow-hidden glass-morphism shadow-elevated border border-white/20">
-              <div className="absolute inset-0">
-                {/* Chat interface mockup */}
-                <div className="flex flex-col h-full p-4">
-                  <div className="flex items-center justify-between bg-secondary/50 rounded-lg p-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-destructive/50"></div>
-                      <div className="w-3 h-3 rounded-full bg-accent-foreground/30"></div>
-                      <div className="w-3 h-3 rounded-full bg-primary/50"></div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">HalalChat AI</div>
-                    <div className="w-16"></div>
-                  </div>
-                  
-                  <div className="flex-1 overflow-hidden flex flex-col">
-                    <div className="flex flex-col gap-4 overflow-y-auto p-2">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium">AI</div>
-                        <div className="bg-secondary rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                          <p>Assalamu alaikum! I'm HalalChat AI. How can I assist you today in creating content that aligns with Islamic principles?</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-start gap-3 justify-end">
-                        <div className="bg-primary/10 text-foreground rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
-                          <p>Can you write a short paragraph about the importance of seeking knowledge in Islam?</p>
-                        </div>
-                        <div className="w-8 h-8 rounded-full bg-accent-foreground/10 flex items-center justify-center text-accent-foreground font-medium">U</div>
-                      </div>
-                      
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium">AI</div>
-                        <div className="bg-secondary rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                          <p>Seeking knowledge is a profound duty in Islam. Prophet Muhammad (peace be upon him) emphasized its importance saying, "Seeking knowledge is an obligation upon every Muslim." This divine directive reflects Islam's reverence for education and intellectual growth. Knowledge illuminates our path, deepens our understanding of faith, and enables us to contribute positively to society. By seeking both religious and worldly knowledge with pure intentions, Muslims fulfill a spiritual obligation while developing themselves. In the Quran, Allah elevates those with knowledge, highlighting the eternal value of learning as an act of worship that brings us closer to understanding our purpose and our Creator.</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-auto pt-3 border-t border-border">
-                      <form onSubmit={handleChatSubmit} className="relative">
-                        <input
-                          type="text"
-                          placeholder="Type your message here..."
-                          className="w-full rounded-lg border border-border bg-secondary/50 py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                        <button type="submit" className="absolute right-3 top-3 text-primary">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="m22 2-7 20-4-9-9-4 20-7Z" />
-                            <path d="M22 2 11 13" />
-                          </svg>
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
+
+          <div className="grid md:grid-cols-3 gap-8 text-left">
+            <div className="bg-card border border-border p-6 rounded-lg">
+              <h3 className="text-lg font-medium mb-2">🔹 Ethical & Halal AI</h3>
+              <p className="text-muted-foreground">AI-generated content is filtered to align with Islamic principles.</p>
             </div>
-            
-            {/* Decorative elements */}
-            <div className="absolute -top-6 -right-6 w-20 h-20 bg-primary/10 rounded-full blur-xl"></div>
-            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-primary/10 rounded-full blur-xl"></div>
+            <div className="bg-card border border-border p-6 rounded-lg">
+              <h3 className="text-lg font-medium mb-2">🔹 Unlimited Free Access</h3>
+              <p className="text-muted-foreground">No credit card or payment required. Just chat and generate.</p>
+            </div>
+            <div className="bg-card border border-border p-6 rounded-lg">
+              <h3 className="text-lg font-medium mb-2">🔹 Share & Learn</h3>
+              <p className="text-muted-foreground">Save, organize, and share AI-generated Islamic content.</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
   );
-};
-
-export default Hero;
+}

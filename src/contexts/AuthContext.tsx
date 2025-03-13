@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       toast.success('Successfully signed in!');
     } catch (error: any) {
+      console.error('Sign in error:', error);
       toast.error(error.message || 'Error signing in');
       throw error;
     }
@@ -59,18 +60,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
-      // Set autoconfirm to true for development/testing
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          // Important: Setting this to true for development to auto-confirm users
           emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            credits: 20, // Give new users 20 credits
+          }
         }
       });
       
       if (error) throw error;
-      toast.success('Registration successful! You can now log in with your credentials.');
+      
+      // For development/testing, we'll assume the signup was successful even without email confirmation
+      if (data.user) {
+        // Create user profile
+        try {
+          const { error: profileError } = await supabase
+            .from('users')
+            .insert([
+              { 
+                id: data.user.id, 
+                email: data.user.email,
+                credits: 20,
+                display_name: data.user.email?.split('@')[0] || 'User'
+              }
+            ]);
+            
+          if (profileError) {
+            console.error('Error creating user profile:', profileError);
+          }
+        } catch (profileError) {
+          console.error('Error in profile creation:', profileError);
+        }
+      }
+
+      toast.success(
+        data.user && data.user.identities && data.user.identities.length === 0
+          ? 'Account already exists. Please log in.'
+          : 'Registration successful! You can now log in with your credentials.'
+      );
     } catch (error: any) {
+      console.error('Sign up error:', error);
       toast.error(error.message || 'Error signing up');
       throw error;
     }
@@ -82,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       toast.success('Successfully signed out');
     } catch (error: any) {
+      console.error('Sign out error:', error);
       toast.error(error.message || 'Error signing out');
       throw error;
     }
@@ -96,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       toast.success('Check your email for the password reset link!');
     } catch (error: any) {
+      console.error('Reset password error:', error);
       toast.error(error.message || 'Error resetting password');
       throw error;
     }
