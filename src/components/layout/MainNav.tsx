@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +27,7 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useTheme } from "next-themes";
 import { Badge } from "@/components/ui/badge";
@@ -103,7 +102,7 @@ export default function MainNav() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [isScrolled, setIsScrolled] = useState(false);
   const { theme, setTheme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -191,7 +190,6 @@ export default function MainNav() {
             <span className="text-primary ml-1 text-xl">AI</span>
           </Link>
 
-          {/* Desktop Navigation */}
           {!isMobile && (
             <nav className="hidden md:flex items-center space-x-1 ml-6">
               {navItems.map((item) => (

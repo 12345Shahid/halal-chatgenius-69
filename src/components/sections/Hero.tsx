@@ -23,9 +23,15 @@ export default function Hero() {
       // If logged in, redirect to tools/general
       navigate(`/tools/general?prompt=${encodeURIComponent(prompt)}`);
     } else {
-      // If not logged in, redirect to login
+      // If not logged in, redirect to login with information about the intended destination
+      console.log("User not logged in, redirecting to login");
       toast.info('Please login to chat with HalalChat AI');
-      navigate('/login', { state: { redirectTo: '/tools/general', prompt } });
+      navigate('/login', { 
+        state: { 
+          redirectTo: '/tools/general', 
+          prompt 
+        } 
+      });
     }
   };
 
@@ -64,7 +70,15 @@ export default function Hero() {
             <Button
               size="lg"
               className="h-14 px-8 rounded-full"
-              onClick={() => navigate(user ? '/tools' : '/login')}
+              onClick={() => {
+                if (user) {
+                  navigate('/tools');
+                } else {
+                  console.log("User not logged in, redirecting to login");
+                  navigate('/login');
+                  toast.info('Please login to access tools');
+                }
+              }}
             >
               <Sparkles className="mr-2 h-5 w-5" />
               Start Creating

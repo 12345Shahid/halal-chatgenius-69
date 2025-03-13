@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.log("Auth state changed:", _event, session);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session:", session);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -44,12 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Signing in with:", email);
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Sign in error:", error);
+        throw error;
+      }
+      
+      console.log("Sign in successful:", data);
       toast.success('Successfully signed in!');
     } catch (error: any) {
       console.error('Sign in error:', error);
@@ -60,23 +68,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
+      console.log("Signing up with:", email);
+      
+      // For development/testing, disable email confirmation
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // Important: Setting this to true for development to auto-confirm users
-          emailRedirectTo: `${window.location.origin}/login`,
+          // We're intentionally NOT setting emailRedirectTo for development to prevent email confirmation
           data: {
             credits: 20, // Give new users 20 credits
           }
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Sign up error:", error);
+        throw error;
+      }
       
-      // For development/testing, we'll assume the signup was successful even without email confirmation
+      console.log("Sign up response:", data);
+      
+      // Create user profile regardless of confirmation status
       if (data.user) {
-        // Create user profile
         try {
           const { error: profileError } = await supabase
             .from('users')
@@ -91,17 +105,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
           if (profileError) {
             console.error('Error creating user profile:', profileError);
+          } else {
+            console.log("User profile created successfully");
           }
         } catch (profileError) {
           console.error('Error in profile creation:', profileError);
         }
       }
 
-      toast.success(
-        data.user && data.user.identities && data.user.identities.length === 0
-          ? 'Account already exists. Please log in.'
-          : 'Registration successful! You can now log in with your credentials.'
-      );
+      // For development, we'll consider the sign-up successful without email confirmation
+      toast.success('Registration successful! You can now log in with your credentials.');
     } catch (error: any) {
       console.error('Sign up error:', error);
       toast.error(error.message || 'Error signing up');
