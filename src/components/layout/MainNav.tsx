@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown, Globe } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +12,6 @@ type MainNavProps = {
 
 const MainNav = ({ containerClassName }: MainNavProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const location = useLocation();
   const { user, signOut } = useAuth();
   
@@ -26,14 +25,6 @@ const MainNav = ({ containerClassName }: MainNavProps) => {
     { name: 'About', path: '/about' },
     { name: 'Contact', path: '/contact' },
     { name: 'Pricing', path: '/pricing' },
-  ];
-
-  const languages = [
-    { name: 'English', code: 'en' },
-    { name: 'Arabic', code: 'ar' },
-    { name: 'French', code: 'fr' },
-    { name: 'Spanish', code: 'es' },
-    { name: 'Chinese', code: 'zh' },
   ];
 
   const userNavLinks = user ? [
@@ -79,35 +70,6 @@ const MainNav = ({ containerClassName }: MainNavProps) => {
                   {link.name}
                 </Link>
               ))}
-            </div>
-
-            {/* Language Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setLanguageMenuOpen(!languageMenuOpen)}
-                className="flex items-center text-sm font-medium text-foreground hover:text-primary"
-              >
-                <Globe className="w-4 h-4 mr-1" />
-                <span>Language</span>
-                <ChevronDown className="w-3 h-3 ml-1" />
-              </button>
-              
-              {languageMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-card rounded-md shadow-lg z-20 py-1 border border-border">
-                  {languages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent/50"
-                      onClick={() => {
-                        // Set language logic would go here
-                        setLanguageMenuOpen(false);
-                      }}
-                    >
-                      {lang.name}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Auth Buttons */}
@@ -212,21 +174,6 @@ const MainNav = ({ containerClassName }: MainNavProps) => {
                   </Link>
                 </div>
               )}
-
-              {/* Mobile Language Selector */}
-              <div className="pt-4 pb-3 border-t border-border">
-                <div className="space-y-1">
-                  <p className="px-3 text-sm font-medium text-muted-foreground">Language</p>
-                  {languages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      className="w-full text-left block px-3 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent/50"
-                    >
-                      {lang.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         )}

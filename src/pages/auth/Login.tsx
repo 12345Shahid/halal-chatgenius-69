@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,8 +21,18 @@ type FormValues = z.infer<typeof formSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signIn, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Check if user was just redirected from signup page
+  const [fromSignup, setFromSignup] = useState(false);
+  
+  useEffect(() => {
+    // Check query params for fromSignup indicator
+    const query = new URLSearchParams(location.search);
+    setFromSignup(query.get('fromSignup') === 'true');
+  }, [location.search]);
 
   useEffect(() => {
     // If user is already logged in, redirect to dashboard
@@ -98,6 +108,14 @@ const Login = () => {
           <CardDescription>
             Enter your email and password to access your account
           </CardDescription>
+          
+          {fromSignup && (
+            <div className="bg-green-50 border border-green-200 rounded-md p-3 mt-3">
+              <p className="text-green-800 text-sm">
+                Registration successful! You can now log in with your credentials.
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <Form {...form}>

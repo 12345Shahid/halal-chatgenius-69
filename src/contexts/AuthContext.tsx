@@ -59,13 +59,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
+      // Set autoconfirm to true for development/testing
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+        }
       });
       
       if (error) throw error;
-      toast.success('Check your email to confirm your account!');
+      toast.success('Registration successful! You can now log in with your credentials.');
     } catch (error: any) {
       toast.error(error.message || 'Error signing up');
       throw error;

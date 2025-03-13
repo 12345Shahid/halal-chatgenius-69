@@ -106,15 +106,7 @@ const Footer = () => {
         </div>
         
         <div className="mt-12 pt-8 border-t border-border text-center md:text-left text-sm text-muted-foreground">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <p>© {currentYear} HalalChat AI. All rights reserved.</p>
-            <div className="mt-4 md:mt-0">
-              <select className="bg-transparent border border-border rounded-md px-2 py-1 text-sm">
-                <option value="en">English</option>
-                <option value="ar">العربية</option>
-              </select>
-            </div>
-          </div>
+          <p>© {currentYear} HalalChat AI. All rights reserved.</p>
         </div>
       </div>
     </footer>

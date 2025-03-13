@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +38,7 @@ const Signup = () => {
   const { signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [referralId, setReferralId] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     // Extract referral ID from URL if present
@@ -64,23 +64,57 @@ const Signup = () => {
     try {
       await signUp(values.email, values.password);
       
-      // After successful signup, the user will receive a confirmation email
-      // We'll redirect them to a success page
-      toast.success('Please check your email to confirm your account');
+      // After successful signup, show success message
+      setShowSuccess(true);
       
       // If there was a referral, store it to be processed after email confirmation
       if (referralId) {
         localStorage.setItem('referralId', referralId);
       }
       
-      // For demo purposes, redirect to login
-      navigate('/login');
+      // Navigate to login after a delay
+      setTimeout(() => {
+        navigate('/login');
+      }, 3000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign up');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (showSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">Registration Successful!</CardTitle>
+            <CardDescription className="text-center">
+              Your account has been created successfully. You can now log in with your credentials.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center space-y-4">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-center text-muted-foreground">
+              Redirecting you to the login page...
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full"
+              onClick={() => navigate('/login')}
+            >
+              Go to Login
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
