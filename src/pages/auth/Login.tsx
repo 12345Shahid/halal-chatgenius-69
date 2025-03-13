@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/Button";
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 const Login = () => {
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { state } = location;
@@ -24,16 +24,30 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      console.log("User already logged in, redirecting to dashboard");
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
     
     try {
+      console.log("Attempting login with:", email);
       await signIn(email, password);
+      
+      // This part should only execute if signIn was successful
+      console.log("Login successful, checking redirect");
       
       // Redirect to dashboard or the page they were trying to access
       const redirectTo = state?.redirectTo || "/dashboard";
+      console.log("Redirecting to:", redirectTo);
+      
       navigate(redirectTo, { 
         state: { 
           ...(state?.prompt ? { prompt: state.prompt } : {}) 

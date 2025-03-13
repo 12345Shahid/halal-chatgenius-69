@@ -1,12 +1,13 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/input';
 import { Eye, EyeOff, Mail, Lock, User, Check, AlertCircle } from 'lucide-react';
 
 const Signup = () => {
-  const { signUp } = useAuth();
+  const { signUp, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const query = new URLSearchParams(location.search);
@@ -20,6 +21,14 @@ const Signup = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      console.log("User already logged in, redirecting to dashboard");
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -50,17 +59,22 @@ const Signup = () => {
     setIsLoading(true);
     
     try {
+      console.log("Attempting signup with:", formData.email);
       await signUp(formData.email, formData.password);
       setIsLoading(false);
-      // Redirect to login page after successful signup
-      navigate('/login');
+      
+      // Always redirect to the login page after signup
+      navigate('/login', { state: { email: formData.email } });
     } catch (err: any) {
       setIsLoading(false);
+      
       if (err.message.includes('already registered')) {
         setError('This email is already registered. Please log in instead.');
       } else {
         setError(err.message || 'Failed to create account. Please try again.');
       }
+      
+      console.error("Signup error:", err.message);
     }
   };
 
@@ -94,7 +108,7 @@ const Signup = () => {
                   <div className="absolute left-3 top-3 text-muted-foreground">
                     <User size={18} />
                   </div>
-                  <input
+                  <Input
                     id="name"
                     name="name"
                     type="text"
@@ -102,7 +116,7 @@ const Signup = () => {
                     required
                     value={formData.name}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-border pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="pl-10"
                     placeholder="Your name"
                   />
                 </div>
@@ -116,7 +130,7 @@ const Signup = () => {
                   <div className="absolute left-3 top-3 text-muted-foreground">
                     <Mail size={18} />
                   </div>
-                  <input
+                  <Input
                     id="email"
                     name="email"
                     type="email"
@@ -124,7 +138,7 @@ const Signup = () => {
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-border pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="pl-10"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -138,7 +152,7 @@ const Signup = () => {
                   <div className="absolute left-3 top-3 text-muted-foreground">
                     <Lock size={18} />
                   </div>
-                  <input
+                  <Input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
@@ -146,7 +160,7 @@ const Signup = () => {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-border pl-10 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="pl-10 pr-10"
                     placeholder="Create a strong password"
                   />
                   <button
