@@ -67,8 +67,7 @@ export const useReferral = () => {
     try {
       console.log("Processing referral:", { referrerId, referredId });
       
-      // For security, we should process referrals on the server side
-      // Check if we can use our function endpoint
+      // First check if the user has a valid session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -76,6 +75,7 @@ export const useReferral = () => {
         return { success: false, error: "Authentication required" };
       }
       
+      // Call the edge function to process the referral
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/handle-referral`, {
         method: "POST",
         headers: {

@@ -19,7 +19,9 @@ async function testAuthenticationSystem() {
     
     // First, check if our test user exists and delete it if it does
     console.log("\nCleaning up existing test user...");
-    const { data: existingUser, error: lookupError } = await supabase.auth.admin.listUsers();
+    const { data: existingUser, error: lookupError } = await supabase.auth.admin.listUsers({
+      perPage: 1000,
+    });
     
     if (lookupError) {
       console.log("Error looking up users:", lookupError.message);
@@ -32,6 +34,18 @@ async function testAuthenticationSystem() {
           console.log("Error deleting test user:", deleteError.message);
         } else {
           console.log("Successfully deleted test user");
+          
+          // Also delete from the users table if it exists
+          const { error: deleteProfileError } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', testUser.id);
+            
+          if (deleteProfileError) {
+            console.log("Error deleting user profile:", deleteProfileError.message);
+          } else {
+            console.log("Successfully deleted user profile");
+          }
         }
       } else {
         console.log("No existing test user found");
@@ -59,11 +73,30 @@ async function testAuthenticationSystem() {
       console.log("User ID:", signUpData.user?.id);
       console.log("Email confirmation required:", !signUpData.session);
       
+      // For testing, we'll use admin API to auto-confirm the user
+      if (!signUpData.session && signUpData.user) {
+        console.log("\nAuto-confirming user for testing...");
+        
+        // Add a delay to ensure the user is created in the database
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const { error: updateError } = await supabase.auth.admin.updateUserById(
+          signUpData.user.id,
+          { email_confirm: true }
+        );
+        
+        if (updateError) {
+          console.error("❌ Could not confirm user:", updateError.message);
+        } else {
+          console.log("✅ User email confirmed for testing");
+        }
+      }
+      
       // Check if the user profile was created in the users table
       console.log("\nChecking if user profile was created...");
       
       // Wait a second for the database to update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       const { data: profileData, error: profileError } = await supabase
         .from('users')
@@ -106,39 +139,10 @@ async function testAuthenticationSystem() {
     
     // Test 2: Sign In
     console.log("\n=== Test 2: Sign In ===");
-    
-    // For email confirmation workflow, we need special handling for tests
-    if (!signUpData?.session) {
-      console.log("⚠️ Email confirmation is required for the new account");
-      console.log("For testing purposes, we'll use admin API to auto-confirm the user...");
-      
-      // In production this would be handled via the email confirmation flow
-      // For testing we'll use the admin API to simulate confirmation
-      const { data: adminUserData, error: adminError } = await supabase.auth.admin.getUserById(
-        signUpData?.user?.id || ''
-      );
-      
-      if (adminError) {
-        console.error("❌ Could not retrieve user for confirmation:", adminError.message);
-      } else {
-        console.log("Retrieved user for confirmation:", adminUserData.user?.email);
-        
-        // Set user as confirmed
-        const { error: updateError } = await supabase.auth.admin.updateUserById(
-          adminUserData.user?.id || '',
-          { email_confirm: true }
-        );
-        
-        if (updateError) {
-          console.error("❌ Could not confirm user:", updateError.message);
-        } else {
-          console.log("✅ User email confirmed for testing");
-        }
-      }
-    }
-    
-    // Now try to sign in
     console.log("\nAttempting to sign in with test account...");
+    
+    // Wait a moment before attempting sign in
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: TEST_EMAIL,
@@ -167,6 +171,26 @@ async function testAuthenticationSystem() {
       
       if (profileCheckError) {
         console.error("❌ User profile check after sign in failed:", profileCheckError.message);
+        
+        // Try creating profile after sign in if it doesn't exist
+        console.log("\nAttempting to create user profile after sign in...");
+        
+        const { error: createProfileError } = await supabase
+          .from('users')
+          .insert([
+            { 
+              id: signInData.user?.id, 
+              email: signInData.user?.email,
+              credits: 20,
+              display_name: signInData.user?.email?.split('@')[0] || 'User'
+            }
+          ]);
+          
+        if (createProfileError) {
+          console.error("❌ Profile creation after sign in failed:", createProfileError.message);
+        } else {
+          console.log("✅ Profile created after sign in successfully!");
+        }
       } else {
         console.log("✅ User profile exists after sign in:", profileAfterSignIn);
       }

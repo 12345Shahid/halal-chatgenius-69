@@ -60,6 +60,8 @@ const Login = () => {
         setError("Invalid email or password. Please try again.");
       } else if (err.message?.includes("Email not confirmed")) {
         setError("Please verify your email before logging in.");
+      } else if (err.message?.includes("Failed to fetch")) {
+        setError("Connection error. Please check your internet connection and try again.");
       } else {
         setError(err.message || "An error occurred during login.");
       }
