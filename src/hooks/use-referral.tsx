@@ -67,11 +67,20 @@ export const useReferral = () => {
     try {
       console.log("Processing referral:", { referrerId, referredId });
       
+      // For security, we should process referrals on the server side
+      // Check if we can use our function endpoint
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error("No active session for API call");
+        return { success: false, error: "Authentication required" };
+      }
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/handle-referral`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${supabase.auth.getSession()}`
+          "Authorization": `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           referrerId,
