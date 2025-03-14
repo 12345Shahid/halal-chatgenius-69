@@ -48,72 +48,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Helper function to ensure user profile exists
-  const ensureUserProfile = async (user: User) => {
-    try {
-      // First check if profile already exists
-      console.log("Checking if user profile exists for:", user.id);
-      const { data: existingUser, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-        
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking for existing user profile:', fetchError.message);
-        return;
-      }
-      
-      if (!existingUser) {
-        console.log("User profile doesn't exist, creating one now");
-        
-        // For auth created users, we need to ensure the user exists in auth before
-        // trying to create a profile with a foreign key reference
-        // First, check if the user exists in auth
-        const { data: authUser } = await supabase.auth.getUser();
-        
-        if (!authUser || !authUser.user) {
-          console.log("Auth user not found yet, waiting before creating profile");
-          // The user might not be fully created in auth yet, wait a bit longer
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-        
-        // Now create the profile
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([
-            { 
-              id: user.id, 
-              email: user.email,
-              credits: 20,
-              display_name: user.email?.split('@')[0] || 'User'
-            }
-          ]);
-            
-        if (profileError) {
-          console.error('Profile creation failed:', profileError.message);
-          // If the error is a foreign key constraint, the user might not be fully
-          // created in auth yet. We'll let the user know to try again later.
-          if (profileError.message.includes('foreign key constraint')) {
-            toast.error('Account created but profile setup failed. Please try logging in later.');
-          }
-        } else {
-          console.log("User profile created successfully");
-        }
-      } else {
-        console.log("User profile already exists");
-      }
-    } catch (profileError: any) {
-      console.error('Error in profile creation:', profileError.message);
-    }
-  }
-
   // Sign in functionality
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting to sign in with:", email);
       setLoading(true);
       
+      // First check if email is confirmed using our dev helper function
+      const confirmResponse = await fetch(`${supabase.supabaseUrl}/functions/v1/dev-confirm-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`
+        },
+        body: JSON.stringify({ email })
+      });
+      
+      if (!confirmResponse.ok) {
+        console.log("There was an issue confirming the email:", await confirmResponse.text());
+        // Continue with login attempt anyway
+      }
+      
+      // Now try to sign in
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -125,13 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       console.log("Sign in successful:", data?.user?.email);
-      
-      // Check if user profile exists, if not create it
-      // This handles cases where auth exists but profile wasn't created properly
-      if (data.user) {
-        await ensureUserProfile(data.user);
-      }
-      
       toast.success('Successfully signed in!');
     } catch (error: any) {
       console.error('Sign in error:', error.message);
@@ -167,26 +116,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log("Sign up response:", data);
       
-      // If we get a user but no session, it means email confirmation is required
-      if (data.user && !data.session) {
-        toast.success('Registration successful! Please check your email to confirm your account.');
-        // Redirect to login with email prefilled
-        return;
-      }
-      
-      // If we have both user and session, user is auto-confirmed
-      if (data.user && data.session) {
-        console.log("User was auto-confirmed, session available");
-        
-        // Try to create the user profile, but don't worry if it fails
-        // they can try signing in later
+      // Auto-confirm the user's email for development purposes
+      if (data.user) {
         try {
-          await ensureUserProfile(data.user);
-          toast.success('Account created successfully! Welcome!');
-        } catch (profileError: any) {
-          console.error('Error in profile creation after signup:', profileError.message);
-          // Still show success since auth is created
-          toast.success('Account created! Please sign in.');
+          console.log("Attempting to auto-confirm email for development");
+          const confirmResponse = await fetch(`${supabase.supabaseUrl}/functions/v1/dev-confirm-user`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabase.supabaseKey}`
+            },
+            body: JSON.stringify({ email })
+          });
+          
+          const confirmResult = await confirmResponse.json();
+          console.log("Email confirmation result:", confirmResult);
+          
+          if (confirmResponse.ok) {
+            toast.success('Account created and email automatically confirmed for development!');
+          } else {
+            toast.warning('Account created, but email confirmation may be required.');
+          }
+        } catch (confirmError) {
+          console.error("Error confirming email:", confirmError);
+          toast.warning('Account created, but email confirmation may be required.');
         }
       }
     } catch (error: any) {

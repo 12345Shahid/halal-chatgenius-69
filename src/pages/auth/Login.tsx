@@ -4,7 +4,6 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
 import { 
   Eye, 
   EyeOff, 
@@ -43,12 +42,10 @@ const Login = () => {
       await signIn(email, password);
       
       // This part should only execute if signIn was successful
-      console.log("Login successful, checking redirect");
+      console.log("Login successful, redirecting");
       
       // Redirect to dashboard or the page they were trying to access
       const redirectTo = state?.redirectTo || "/dashboard";
-      console.log("Redirecting to:", redirectTo);
-      
       navigate(redirectTo, { 
         state: { 
           ...(state?.prompt ? { prompt: state.prompt } : {}) 

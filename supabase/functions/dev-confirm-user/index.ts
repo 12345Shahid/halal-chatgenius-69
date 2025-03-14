@@ -77,6 +77,47 @@ serve(async (req) => {
       );
     }
 
+    // Now create the user profile if it doesn't exist
+    // First check if profile already exists
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+      
+    if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+      console.error("Error checking for profile:", profileCheckError);
+      // Continue anyway, since email confirmation is more important
+    }
+    
+    // If profile doesn't exist, create it
+    if (!existingProfile) {
+      console.log("Creating user profile for:", user.id);
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([
+          { 
+            id: user.id, 
+            email: email,
+            credits: 20,
+            display_name: email.split('@')[0] || 'User'
+          }
+        ]);
+        
+      if (insertError) {
+        console.error("Error creating profile:", insertError);
+        // Return success for the email confirmation part, but note the profile error
+        return new Response(
+          JSON.stringify({ 
+            message: "Email confirmed successfully, but profile creation failed", 
+            profile_error: insertError.message,
+            user_id: user.id
+          }),
+          { status: 200, headers }
+        );
+      }
+    }
+
     console.log(`Successfully confirmed email for: ${email}`);
     
     return new Response(

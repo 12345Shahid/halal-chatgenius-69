@@ -21,6 +21,7 @@ const Signup = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   // If already logged in, redirect to dashboard
   useEffect(() => {
@@ -56,15 +57,20 @@ const Signup = () => {
     }
     
     setError('');
+    setSuccess('');
     setIsLoading(true);
     
     try {
       console.log("Attempting signup with:", formData.email);
       await signUp(formData.email, formData.password);
+      
+      setSuccess('Account created successfully! You can now log in.');
       setIsLoading(false);
       
-      // Always redirect to the login page after signup
-      navigate('/login', { state: { email: formData.email } });
+      // Redirect to login page after a short delay
+      setTimeout(() => {
+        navigate('/login', { state: { email: formData.email } });
+      }, 2000);
     } catch (err: any) {
       setIsLoading(false);
       
@@ -95,6 +101,13 @@ const Signup = () => {
             <div className="bg-destructive/10 text-destructive rounded-lg p-3 flex items-start gap-2 mb-6">
               <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
+            </div>
+          )}
+          
+          {success && (
+            <div className="bg-green-100 text-green-800 rounded-lg p-3 flex items-start gap-2 mb-6">
+              <Check size={18} className="mt-0.5 flex-shrink-0" />
+              <span className="text-sm">{success}</span>
             </div>
           )}
           
