@@ -9,16 +9,6 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 serve(async (req) => {
-  // This endpoint is for DEVELOPMENT only and should NOT be used in production
-  const isDevelopment = true; // Change to false in production
-  
-  if (!isDevelopment) {
-    return new Response(
-      JSON.stringify({ error: "This endpoint is disabled in production" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -28,7 +18,6 @@ serve(async (req) => {
   const headers = { ...corsHeaders, "Content-Type": "application/json" };
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { email } = await req.json();
 
     if (!email) {
@@ -38,59 +27,62 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Attempting to auto-confirm user: ${email}`);
+    console.log(`Attempting to verify email for: ${email}`);
     
-    // Use admin API to get the user
-    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Find the user by email
+    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers({
       filters: {
-        email: email,
+        email: email
       }
     });
 
-    if (listError) {
-      console.error("Error looking up user:", listError);
+    if (getUserError) {
+      console.error("Error finding user:", getUserError);
       return new Response(
-        JSON.stringify({ error: "Error looking up user" }),
+        JSON.stringify({ error: "Error finding user" }),
         { status: 500, headers }
       );
     }
 
-    const user = users?.[0];
-    if (!user) {
+    if (!users || users.length === 0) {
       return new Response(
         JSON.stringify({ error: "User not found" }),
         { status: 404, headers }
       );
     }
 
-    // Check if already confirmed
+    const user = users[0];
+    
+    // If the user is already confirmed, return success
     if (user.email_confirmed_at) {
-      console.log("User already confirmed");
       return new Response(
-        JSON.stringify({ message: "User already confirmed" }),
+        JSON.stringify({ message: "Email already confirmed" }),
         { status: 200, headers }
       );
     }
 
-    // For development only - confirm the user's email
+    // Confirm the user's email
     const { error: updateError } = await supabase.auth.admin.updateUserById(
       user.id,
-      { email_confirm: true }
+      { email_confirmed_at: new Date().toISOString() }
     );
 
     if (updateError) {
-      console.error("Error confirming user:", updateError);
+      console.error("Error confirming email:", updateError);
       return new Response(
-        JSON.stringify({ error: "Error confirming user" }),
+        JSON.stringify({ error: "Error confirming email" }),
         { status: 500, headers }
       );
     }
 
-    console.log("User confirmed successfully:", email);
+    console.log(`Successfully confirmed email for: ${email}`);
     
     return new Response(
       JSON.stringify({ 
-        message: "User confirmed successfully"
+        message: "Email confirmed successfully",
+        user_id: user.id
       }),
       { status: 200, headers }
     );
