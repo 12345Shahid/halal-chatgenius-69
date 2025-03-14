@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 const Login = () => {
-  const { signIn, user } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { state } = location;
@@ -39,6 +39,18 @@ const Login = () => {
     
     try {
       console.log("Attempting login with:", email);
+      
+      // Check if the email has been confirmed (for development testing)
+      // This is a temporary solution for development environments where email confirmation might not be set up
+      const isEmailConfirmed = await checkEmailConfirmation(email);
+      
+      if (!isEmailConfirmed) {
+        // If email is not confirmed, show a friendly message
+        setError("Please check your email inbox to confirm your account first.");
+        setIsLoading(false);
+        return;
+      }
+      
       await signIn(email, password);
       
       // This part should only execute if signIn was successful
@@ -67,6 +79,41 @@ const Login = () => {
       }
       
       setIsLoading(false);
+    }
+  };
+  
+  // Development helper function to check if email has been confirmed
+  // In a production environment, this would be handled by the actual email confirmation flow
+  const checkEmailConfirmation = async (email: string): Promise<boolean> => {
+    try {
+      // For development, we'll assume the email is confirmed after a certain time
+      // In production, this would be handled by the actual email confirmation
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // If we already have a session, the email is confirmed
+        return true;
+      }
+      
+      // In development, we can use a direct API call to check if the user exists and is confirmed
+      // This is just for development purposes - in production, rely on proper email confirmation
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-email-confirmed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.confirmed;
+      }
+      
+      // Fall back to assuming the email is confirmed for development
+      return true;
+    } catch (error) {
+      console.error("Error checking email confirmation:", error);
+      // For development, assume the email is confirmed to allow login testing
+      return true;
     }
   };
   
@@ -152,7 +199,7 @@ const Login = () => {
               
               <Button
                 type="submit"
-                isLoading={isLoading}
+                isLoading={isLoading || authLoading}
                 className="w-full"
               >
                 Sign in

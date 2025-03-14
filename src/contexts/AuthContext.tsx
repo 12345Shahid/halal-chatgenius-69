@@ -68,27 +68,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("User profile doesn't exist, creating one now");
         
         // Add a delay to ensure auth user is fully created in the database
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // This helps prevent foreign key constraint errors
+        await new Promise(resolve => setTimeout(resolve, 2500));
         
         // Create new profile with retry logic
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([
-            { 
-              id: user.id, 
-              email: user.email,
-              credits: 20,
-              display_name: user.email?.split('@')[0] || 'User'
-            }
-          ]);
-          
-        if (profileError) {
-          console.error('Error creating user profile:', profileError.message);
-          
-          // If there's still an error, let's log it but not fail the auth process
-          console.log("User authenticated successfully but profile creation failed");
-        } else {
-          console.log("User profile created successfully");
+        const maxRetries = 3;
+        let retryCount = 0;
+        let profileCreated = false;
+        
+        while (retryCount < maxRetries && !profileCreated) {
+          const { error: profileError } = await supabase
+            .from('users')
+            .insert([
+              { 
+                id: user.id, 
+                email: user.email,
+                credits: 20,
+                display_name: user.email?.split('@')[0] || 'User'
+              }
+            ]);
+            
+          if (profileError) {
+            console.error(`Profile creation attempt ${retryCount + 1} failed:`, profileError.message);
+            retryCount++;
+            // Wait longer between retries
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            console.log("User profile created successfully");
+            profileCreated = true;
+          }
+        }
+        
+        if (!profileCreated) {
+          console.error("Failed to create user profile after multiple attempts");
         }
       } else {
         console.log("User profile already exists");
@@ -102,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting to sign in with:", email);
+      setLoading(true);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -125,6 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Sign in error:', error.message);
       toast.error(error.message || 'Error signing in');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -132,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       console.log("Attempting to sign up with:", email);
+      setLoading(true);
       
       // For development, we can disable email confirmation
       const shouldAutoConfirm = true; // Set to true during development
@@ -160,21 +177,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Auto-confirming user for development");
         
         // Wait a moment to ensure the user is created
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 2500));
         
-        // This would normally happen via email confirmation
-        // For development, we'll simulate a successful confirmation
+        // For development, manually create the user profile
+        // (In production, this would happen after email confirmation)
         try {
-          // First, try to sign in despite not being confirmed (this won't work in production)
-          await signIn(email, password);
-        } catch (confirmError: any) {
-          console.error("Auto-confirmation failed:", confirmError.message);
-          toast.info('Please check your email to confirm your account.');
+          await ensureUserProfile(data.user);
+          
+          // Try to sign in after creating the profile
+          if (shouldAutoConfirm) {
+            try {
+              // In development, we'll try to sign in directly
+              // This simulates a user clicking the confirmation link
+              console.log("Auto-signing in the user for development");
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay
+              
+              // Use an admin function to auto-confirm the user for development
+              const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dev-confirm-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+              });
+              
+              if (response.ok) {
+                console.log("User auto-confirmed via edge function");
+                
+                // Now try to sign in
+                await signIn(email, password);
+              } else {
+                console.log("Could not auto-confirm via edge function, falling back to email confirmation");
+                toast.info('Please check your email to confirm your account.');
+              }
+            } catch (confirmError: any) {
+              console.error("Auto-confirmation failed:", confirmError.message);
+              toast.info('Please check your email to confirm your account.');
+            }
+          }
+        } catch (profileError: any) {
+          console.error('Error in profile creation after signup:', profileError.message);
         }
-      }
-      
-      // This handles both auto-confirmed and confirmation-required cases
-      if (data.session) {
+      } else if (data.session) {
         // User is auto-confirmed
         console.log("User was auto-confirmed, session available");
         
@@ -182,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.user) {
           try {
             // Small delay to ensure auth user is fully created in the database
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, 2500));
             await ensureUserProfile(data.user);
           } catch (profileError: any) {
             console.error('Error in profile creation after signup:', profileError.message);
@@ -199,12 +241,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Sign up error:', error.message);
       toast.error(error.message || 'Error signing up');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Sign out functionality
   const signOut = async () => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
@@ -214,12 +259,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Sign out error:', error.message);
       toast.error(error.message || 'Error signing out');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Reset password functionality
   const resetPassword = async (email: string) => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/update-password`,
       });
@@ -230,6 +278,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Reset password error:', error.message);
       toast.error(error.message || 'Error resetting password');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

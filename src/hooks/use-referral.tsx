@@ -18,6 +18,10 @@ export const useReferral = () => {
       
       // Fetch referral count
       fetchReferralCount();
+    } else {
+      // Clear referral data when not logged in
+      setReferralLink('');
+      setReferralCount(0);
     }
   }, [user]);
 
@@ -51,7 +55,10 @@ export const useReferral = () => {
   };
 
   const copyReferralLink = () => {
-    if (!referralLink) return;
+    if (!referralLink) {
+      toast.error("You must be logged in to share your referral link");
+      return;
+    }
     
     navigator.clipboard.writeText(referralLink)
       .then(() => {
@@ -96,6 +103,12 @@ export const useReferral = () => {
       }
       
       console.log("Referral processed successfully:", data);
+      
+      // Refresh the referral count after successful processing
+      if (user) {
+        fetchReferralCount();
+      }
+      
       return { success: true };
     } catch (err) {
       console.error("Exception in processReferral:", err);
