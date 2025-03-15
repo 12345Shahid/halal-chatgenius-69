@@ -4,10 +4,19 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/input';
-import { Eye, EyeOff, Mail, Lock, User, Check, AlertCircle } from 'lucide-react';
+import { 
+  Eye, 
+  EyeOff, 
+  Mail, 
+  Lock, 
+  User, 
+  Check, 
+  AlertCircle
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 const Signup = () => {
-  const { signUp, user } = useAuth();
+  const { signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const query = new URLSearchParams(location.search);
@@ -21,7 +30,6 @@ const Signup = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // If already logged in, redirect to dashboard
   useEffect(() => {
@@ -57,30 +65,19 @@ const Signup = () => {
     }
     
     setError('');
-    setSuccess('');
     setIsLoading(true);
     
     try {
       console.log("Attempting signup with:", formData.email);
       await signUp(formData.email, formData.password);
       
-      setSuccess('Account created successfully! You can now log in.');
-      setIsLoading(false);
-      
-      // Redirect to login page after a short delay
-      setTimeout(() => {
-        navigate('/login', { state: { email: formData.email } });
-      }, 2000);
+      // Redirect after successful signup
+      navigate("/dashboard");
     } catch (err: any) {
+      console.error('Signup error:', err);
+      setError(err.message || 'An error occurred during signup');
+    } finally {
       setIsLoading(false);
-      
-      if (err.message.includes('already registered')) {
-        setError('This email is already registered. Please log in instead.');
-      } else {
-        setError(err.message || 'Failed to create account. Please try again.');
-      }
-      
-      console.error("Signup error:", err.message);
     }
   };
 
@@ -101,13 +98,6 @@ const Signup = () => {
             <div className="bg-destructive/10 text-destructive rounded-lg p-3 flex items-start gap-2 mb-6">
               <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
-            </div>
-          )}
-          
-          {success && (
-            <div className="bg-green-100 text-green-800 rounded-lg p-3 flex items-start gap-2 mb-6">
-              <Check size={18} className="mt-0.5 flex-shrink-0" />
-              <span className="text-sm">{success}</span>
             </div>
           )}
           
@@ -224,7 +214,7 @@ const Signup = () => {
               
               <Button
                 type="submit"
-                isLoading={isLoading}
+                isLoading={isLoading || authLoading}
                 className="w-full"
               >
                 Create account

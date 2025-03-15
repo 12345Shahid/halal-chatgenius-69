@@ -63,7 +63,7 @@ const Login = () => {
       } else {
         setError(err.message || "An error occurred during login.");
       }
-      
+    } finally {
       setIsLoading(false);
     }
   };
