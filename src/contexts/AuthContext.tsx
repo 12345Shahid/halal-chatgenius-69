@@ -55,17 +55,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       
       // First check if email is confirmed using our dev helper function
-      const confirmResponse = await fetch(`${supabase.supabaseUrl}/functions/v1/dev-confirm-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
-        },
-        body: JSON.stringify({ email })
-      });
-      
-      if (!confirmResponse.ok) {
-        console.log("There was an issue confirming the email:", await confirmResponse.text());
+      try {
+        const confirmResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://tgnpbgngsdlwxphntibh.supabase.co'}/functions/v1/dev-confirm-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnbnBiZ25nc2Rsd3hwaG50aWJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODg2ODMsImV4cCI6MjA1NzE2NDY4M30.n5nf_WWQmj8RAF4r3Kyl9P63StqywKgjMZUoBeqY50k'}`
+          },
+          body: JSON.stringify({ email })
+        });
+        
+        if (!confirmResponse.ok) {
+          console.log("There was an issue confirming the email:", await confirmResponse.text());
+          // Continue with login attempt anyway
+        } else {
+          console.log("Email confirmation response:", await confirmResponse.json());
+        }
+      } catch (confirmError) {
+        console.error("Error during email confirmation:", confirmError);
         // Continue with login attempt anyway
       }
       
@@ -120,21 +127,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user) {
         try {
           console.log("Attempting to auto-confirm email for development");
-          const confirmResponse = await fetch(`${supabase.supabaseUrl}/functions/v1/dev-confirm-user`, {
+          const confirmResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://tgnpbgngsdlwxphntibh.supabase.co'}/functions/v1/dev-confirm-user`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabase.supabaseKey}`
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnbnBiZ25nc2Rsd3hwaG50aWJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODg2ODMsImV4cCI6MjA1NzE2NDY4M30.n5nf_WWQmj8RAF4r3Kyl9P63StqywKgjMZUoBeqY50k'}`
             },
             body: JSON.stringify({ email })
           });
           
-          const confirmResult = await confirmResponse.json();
-          console.log("Email confirmation result:", confirmResult);
-          
           if (confirmResponse.ok) {
+            const confirmResult = await confirmResponse.json();
+            console.log("Email confirmation result:", confirmResult);
             toast.success('Account created and email automatically confirmed for development!');
           } else {
+            console.error("Error confirming email:", await confirmResponse.text());
             toast.warning('Account created, but email confirmation may be required.');
           }
         } catch (confirmError) {
