@@ -51,7 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Helper function to confirm user email via edge function
   const confirmUserEmail = async (email: string): Promise<boolean> => {
     try {
-      // Use environment variables with fallbacks
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://tgnpbgngsdlwxphntibh.supabase.co';
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnbnBiZ25nc2Rsd3hwaG50aWJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODg2ODMsImV4cCI6MjA1NzE2NDY4M30.n5nf_WWQmj8RAF4r3Kyl9P63StqywKgjMZUoBeqY50k';
       
@@ -67,13 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       
       if (!confirmResponse.ok) {
-        console.error("Error confirming email:", await confirmResponse.text());
+        const errorText = await confirmResponse.text();
+        console.error("Error confirming email:", errorText);
         return false;
       }
       
       const result = await confirmResponse.json();
       console.log("Email confirmation result:", result);
-      return true;
+      return result.status === "confirmed" || (result.email_confirmed_at != null);
     } catch (error) {
       console.error("Error during email confirmation:", error);
       return false;

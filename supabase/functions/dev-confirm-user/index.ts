@@ -68,7 +68,8 @@ serve(async (req) => {
         JSON.stringify({ 
           message: "Email already confirmed",
           user_id: user.id,
-          email_confirmed_at: user.email_confirmed_at
+          email_confirmed_at: user.email_confirmed_at,
+          status: "already_confirmed"
         }),
         { status: 200, headers }
       );
