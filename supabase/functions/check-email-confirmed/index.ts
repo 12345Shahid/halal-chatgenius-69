@@ -47,13 +47,10 @@ serve(async (req) => {
 
     const user = users?.[0];
     
-    // Consider user confirmed in these cases:
-    // 1. User exists and email_confirmed_at is set
-    // 2. User exists and we're in development mode (auto-confirm)
-    const isDevelopment = true; // Set to false in production
-    const isConfirmed = user && (user.email_confirmed_at || isDevelopment);
+    // Consider user confirmed if email_confirmed_at is set
+    const isConfirmed = user && user.email_confirmed_at;
     
-    console.log(`User exists: ${!!user}, Email confirmed: ${isConfirmed}`);
+    console.log(`User exists: ${!!user}, Email confirmed: ${!!isConfirmed}`);
     
     return new Response(
       JSON.stringify({ 

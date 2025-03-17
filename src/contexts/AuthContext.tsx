@@ -48,48 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Helper function to confirm user email via edge function
-  const confirmUserEmail = async (email: string): Promise<boolean> => {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://tgnpbgngsdlwxphntibh.supabase.co';
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnbnBiZ25nc2Rsd3hwaG50aWJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1ODg2ODMsImV4cCI6MjA1NzE2NDY4M30.n5nf_WWQmj8RAF4r3Kyl9P63StqywKgjMZUoBeqY50k';
-      
-      console.log("Calling dev-confirm-user edge function for:", email);
-      
-      const confirmResponse = await fetch(`${supabaseUrl}/functions/v1/dev-confirm-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`
-        },
-        body: JSON.stringify({ email })
-      });
-      
-      if (!confirmResponse.ok) {
-        const errorText = await confirmResponse.text();
-        console.error("Error confirming email:", errorText);
-        return false;
-      }
-      
-      const result = await confirmResponse.json();
-      console.log("Email confirmation result:", result);
-      return result.status === "confirmed" || (result.email_confirmed_at != null);
-    } catch (error) {
-      console.error("Error during email confirmation:", error);
-      return false;
-    }
-  };
-
   // Sign in functionality
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting to sign in with:", email);
       setLoading(true);
       
-      // First check if email is confirmed
-      await confirmUserEmail(email);
-      
-      // Now try to sign in
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -136,25 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log("Sign up response:", data);
       
-      // Auto-confirm the user's email for development purposes
       if (data.user) {
-        const confirmed = await confirmUserEmail(email);
-        
-        if (confirmed) {
-          toast.success('Account created and email automatically confirmed!');
-          
-          // Try to sign in immediately after confirmation
-          try {
-            await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
-          } catch (signInError) {
-            console.error("Auto sign-in after signup failed:", signInError);
-            // Continue anyway, as the user can manually sign in
-          }
+        if (data.user.email_confirmed_at) {
+          toast.success('Account created and email already confirmed! You can now log in.');
         } else {
-          toast.warning('Account created, but email confirmation may be required.');
+          toast.success('Account created! Please check your email for a confirmation link.');
         }
       }
     } catch (error: any) {
