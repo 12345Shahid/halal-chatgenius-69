@@ -61,6 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (error) {
         console.error("Sign in error:", error.message);
+        
+        // Check if the error is due to email not being confirmed
+        if (error.message.includes("Email not confirmed")) {
+          toast.error('Please check your email and confirm your account before logging in');
+        } else {
+          toast.error(error.message || 'Error signing in');
+        }
         throw error;
       }
       
@@ -68,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.success('Successfully signed in!');
     } catch (error: any) {
       console.error('Sign in error:', error.message);
-      toast.error(error.message || 'Error signing in');
       throw error;
     } finally {
       setLoading(false);
@@ -101,11 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("Sign up response:", data);
       
       if (data.user) {
-        if (data.user.email_confirmed_at) {
-          toast.success('Account created and email already confirmed! You can now log in.');
-        } else {
-          toast.success('Account created! Please check your email for a confirmation link.');
-        }
+        // In most cases the user won't be confirmed immediately unless they've signed up before
+        toast.success('Thank you for signing up! Please check your email for a confirmation link to activate your account.');
       }
     } catch (error: any) {
       console.error('Sign up error:', error.message);

@@ -1,29 +1,24 @@
-
-import { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/input";
-import { 
-  Eye, 
-  EyeOff, 
-  Lock, 
-  Mail, 
-  AlertCircle
-} from "lucide-react";
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/input';
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 const Login = () => {
-  const { signIn, user, loading: authLoading } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { state } = location;
   
-  const [email, setEmail] = useState(state?.email || "");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  
+  const [error, setError] = useState('');
+
   // If already logged in, redirect to dashboard
   useEffect(() => {
     if (user) {
@@ -31,43 +26,43 @@ const Login = () => {
       navigate("/dashboard");
     }
   }, [user, navigate]);
-  
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    
+    setError('');
     setIsLoading(true);
     
     try {
-      console.log("Attempting login with:", email);
-      await signIn(email, password);
+      console.log("Attempting login with:", formData.email);
+      await signIn(formData.email, formData.password);
       
-      // This part should only execute if signIn was successful
-      console.log("Login successful, redirecting");
-      
-      // Redirect to dashboard or the page they were trying to access
-      const redirectTo = state?.redirectTo || "/dashboard";
-      navigate(redirectTo, { 
-        state: { 
-          ...(state?.prompt ? { prompt: state.prompt } : {}) 
-        } 
-      });
+      // If successful, the auth state will update and redirect
+      navigate("/dashboard");
     } catch (err: any) {
       console.error("Login error:", err);
-      
-      if (err.message?.includes("Invalid login credentials")) {
-        setError("Invalid email or password. Please try again.");
-      } else if (err.message?.includes("Email not confirmed")) {
-        setError("Please verify your email before logging in.");
-      } else if (err.message?.includes("Failed to fetch")) {
-        setError("Connection error. Please check your internet connection and try again.");
+
+      // Set appropriate error message 
+      if (err.message?.includes('Email not confirmed')) {
+        setError('Please check your email and confirm your account before logging in.');
+      } else if (err.message?.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please try again.');
       } else {
-        setError(err.message || "An error occurred during login.");
+        setError(err.message || 'An error occurred during login');
       }
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-secondary/20">
       <div className="w-full max-w-md">
@@ -76,9 +71,8 @@ const Login = () => {
             <span className="text-2xl font-semibold">HalalChat</span>
             <span className="text-primary ml-1 text-2xl">AI</span>
           </Link>
-          
-          <h1 className="text-2xl font-semibold mt-6 mb-2">Welcome back</h1>
-          <p className="text-muted-foreground">Sign in to your account to continue</p>
+          <h1 className="text-2xl font-semibold mt-6 mb-2">Login to your account</h1>
+          <p className="text-muted-foreground">Welcome back to Halal AI</p>
         </div>
         
         <div className="bg-background rounded-xl shadow-elevated border border-border p-8">
@@ -101,11 +95,12 @@ const Login = () => {
                   </div>
                   <Input
                     id="email"
+                    name="email"
                     type="email"
                     autoComplete="email"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={formData.email}
+                    onChange={handleChange}
                     className="pl-10"
                     placeholder="you@example.com"
                   />
@@ -113,30 +108,23 @@ const Login = () => {
               </div>
               
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="password" className="block text-sm font-medium">
-                    Password
-                  </label>
-                  <Link 
-                    to="/reset-password" 
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
+                <label htmlFor="password" className="block text-sm font-medium mb-1">
+                  Password
+                </label>
                 <div className="relative">
                   <div className="absolute left-3 top-3 text-muted-foreground">
                     <Lock size={18} />
                   </div>
                   <Input
                     id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={formData.password}
+                    onChange={handleChange}
                     className="pl-10 pr-10"
-                    placeholder="••••••••"
+                    placeholder="Enter your password"
                   />
                   <button
                     type="button"
@@ -150,7 +138,7 @@ const Login = () => {
               
               <Button
                 type="submit"
-                isLoading={isLoading || authLoading}
+                isLoading={isLoading}
                 className="w-full"
               >
                 Sign in
@@ -162,6 +150,12 @@ const Login = () => {
             <span className="text-muted-foreground">Don't have an account?</span>{' '}
             <Link to="/signup" className="text-primary hover:underline font-medium">
               Sign up
+            </Link>
+          </div>
+          
+          <div className="mt-4 text-center text-sm">
+            <Link to="/forgot-password" className="text-primary hover:underline font-medium">
+              Forgot password?
             </Link>
           </div>
         </div>
